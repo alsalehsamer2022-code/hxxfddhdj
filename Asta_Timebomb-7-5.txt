@@ -1,0 +1,868 @@
+--[[
+    ASTA | Timebomb Duels
+    اختيار اللغة -> إدخال المفتاح -> الواجهة الرئيسية (أزرق)
+]]
+
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService     = game:GetService("TweenService")
+local Stats            = game:GetService("Stats")
+local Workspace        = game:GetService("Workspace")
+local lp               = Players.LocalPlayer
+
+local KEY = "MGGJ44"
+
+-- ============ ألوان (أزرق) ============
+local C = {
+    bg      = Color3.fromRGB(3, 7, 22),
+    panel   = Color3.fromRGB(6, 14, 40),
+    card    = Color3.fromRGB(9, 22, 62),
+    cardHi  = Color3.fromRGB(14, 42, 120),
+    accent  = Color3.fromRGB(30, 120, 255),
+    accent2 = Color3.fromRGB(100, 180, 255),
+    text    = Color3.fromRGB(240, 246, 255),
+    sub     = Color3.fromRGB(110, 165, 255),
+    off     = Color3.fromRGB(20, 32, 78),
+    line    = Color3.fromRGB(25, 85, 210),
+    bad     = Color3.fromRGB(255, 80, 80),
+    good    = Color3.fromRGB(80, 255, 170),
+}
+
+-- ============ نصوص ============
+local TXT = {
+    ar = {
+        title = "ASTA", sub = "| Asta · Timebomb", ping = "البنق",
+        welcome = "مرحبا بك،", status = "الحالة",
+        secDuel = "اعدادات المبارزة", secSet = "الاعدادات",
+        auto = "الاسيست", classic = "اللعب الذاتي الكلاسيكي", pro = "اللعب الذاتي الاحترافي",
+        waitSec = "الحد الأقصى للوقت (ثواني)", total = "مدة القنبلة الكاملة (تقدير)", follow = "مسافة التتبع", wall = "مسافة الجدار",
+        fastTurn = "الالتفاف السريع", turnPower = "قوة الالتفاف",
+        stretch = "تمديد الشاشة (زيادة العرض)", smooth = "زيادة السلاسه (الفريمات)", gap = "عدم التعلق بالجدار", flee = "الهروب",
+        keyTitle = "أدخل المفتاح", keyHint = "اكتب المفتاح هنا", keyBtn = "تحقق",
+        keyBad = "المفتاح غلط", keyOk = "تم التفعيل", keyEmpty = "اكتب المفتاح أول",
+        holderYou = "القنبلة عندك", holderNone = "ما في قنبلة مكتشفة", holderOther = "القنبلة عند: ",
+        on = "تم تشغيل", off = "تم إيقاف", unload = "حذف السكربت نهائيًا", confirm = "هل أنت متأكد من حذف السكربت؟", yes = "نعم", no = "لا", manual = "أمشي بنفسي، وإذا تركت الزر يكمل لحاله", pill = "ASTA ▼", limit = "وصلت الحد الأقصى، تم إيقاف اللعب الذاتي",
+    },
+    en = {
+        title = "ASTA", sub = "| Asta · Timebomb", ping = "Ping",
+        welcome = "Welcome,", status = "Status",
+        secDuel = "Duel Settings", secSet = "Settings",
+        auto = "Assist", classic = "Classic Auto Play", pro = "Pro Auto Play",
+        waitSec = "Max time limit (sec)", total = "Bomb full time (estimate)", follow = "Follow Distance", wall = "Wall Distance",
+        fastTurn = "Fast Turn", turnPower = "Turn Power",
+        stretch = "Stretch Screen (wider view)", smooth = "Smoothness (FPS)", gap = "Anti Wall Stuck", flee = "Escape",
+        keyTitle = "Enter Key", keyHint = "Type your key here", keyBtn = "Verify",
+        keyBad = "Wrong key", keyOk = "Activated", keyEmpty = "Enter the key first",
+        holderYou = "You have the bomb", holderNone = "No bomb detected", holderOther = "Bomb holder: ",
+        on = "Enabled", off = "Disabled", unload = "Unload Script", confirm = "Are you sure you want to delete the script?", yes = "Yes", no = "No", manual = "I walk, auto takes over when I let go", pill = "ASTA ▼", limit = "Max reached, auto play stopped",
+    },
+}
+local L = TXT.ar
+
+-- ============ أدوات ============
+local function new(class, props, parent)
+    local o = Instance.new(class)
+    for k, v in pairs(props or {}) do o[k] = v end
+    if parent then o.Parent = parent end
+    return o
+end
+local function corner(o, r) return new("UICorner", {CornerRadius = UDim.new(0, r or 10)}, o) end
+local function stroke(o, col, th, tr)
+    return new("UIStroke", {Color = col, Thickness = th or 1, Transparency = tr or 0,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border}, o)
+end
+local function gradient(o, c1, c2, rot)
+    return new("UIGradient", {Color = ColorSequence.new(c1, c2), Rotation = rot or 90}, o)
+end
+
+-- حذف النسخة القديمة
+local function cleanOld()
+pcall(function() RunService:UnbindFromRenderStep("AstaTBLoop") end)
+    local places = {}
+    pcall(function() table.insert(places, gethui and gethui() or nil) end)
+    pcall(function() table.insert(places, game:GetService("CoreGui")) end)
+    pcall(function() table.insert(places, lp:FindFirstChildOfClass("PlayerGui")) end)
+    for _, p in ipairs(places) do
+        local old = p and p:FindFirstChild("AstaTB")
+        if old then old:Destroy() end
+    end
+end
+cleanOld()
+
+local gui = new("ScreenGui", {Name = "AstaTB", ResetOnSpawn = false, IgnoreGuiInset = true,
+    ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 999})
+do
+    local ok = pcall(function() gui.Parent = (gethui and gethui()) or game:GetService("CoreGui") end)
+    if not ok or not gui.Parent then gui.Parent = lp:WaitForChild("PlayerGui") end
+end
+
+-- إشعار صغير
+local function notify(msg, col)
+    local t = new("TextLabel", {
+        AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -20),
+        Size = UDim2.new(0, 320, 0, 36), BackgroundColor3 = C.panel, BackgroundTransparency = 0.05,
+        Text = msg, TextColor3 = col or C.text, Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 50,
+    }, gui)
+    corner(t, 10); stroke(t, C.accent, 1.5, 0.2)
+    task.delay(2.2, function()
+        if t and t.Parent then
+            TweenService:Create(t, TweenInfo.new(0.3), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
+            task.wait(0.35)
+            if t then t:Destroy() end
+        end
+    end)
+end
+
+-- ============ الإعدادات ============
+local S = {
+    auto = false, mode = "classic", delay = 3, total = 10, follow = 3.5, wall = 2.5,
+    fastTurn = false, turnPower = 45, stretch = false, smooth = false, flee = true,
+    manualFirst = true, gap = 0.3, gapOn = true,
+}
+local closed = false
+local conns = {}
+
+-- ============ لوحة صغيرة (لغة / مفتاح) ============
+local function makePanel()
+    local p = new("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0.5, 0, 0.55, 0), BackgroundColor3 = C.bg,
+    }, gui)
+    new("UISizeConstraint", {MinSize = Vector2.new(300, 190), MaxSize = Vector2.new(540, 300)}, p)
+    corner(p, 22); stroke(p, C.accent, 2, 0.15)
+    gradient(p, Color3.fromRGB(8, 20, 60), C.bg, 90)
+    return p
+end
+
+local function bigButton(parent, text, pos, size)
+    local b = new("TextButton", {
+        Text = text, AutoButtonColor = false, Position = pos, Size = size,
+        BackgroundColor3 = C.cardHi, TextColor3 = C.text, Font = Enum.Font.GothamBlack, TextSize = 20,
+    }, parent)
+    corner(b, 16); stroke(b, C.accent2, 1.5, 0.3)
+    gradient(b, Color3.fromRGB(30, 100, 230), Color3.fromRGB(10, 40, 130), 90)
+    return b
+end
+
+local buildMain -- تعريف مسبق
+
+local function showKey()
+    local p = makePanel()
+    new("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 56),
+        Text = L.keyTitle .. "  |  ASTA", TextColor3 = C.text, Font = Enum.Font.GothamBold, TextSize = 20}, p)
+    new("Frame", {Position = UDim2.new(0.05, 0, 0, 56), Size = UDim2.new(0.9, 0, 0, 2),
+        BackgroundColor3 = C.line, BorderSizePixel = 0}, p)
+
+    local box = new("TextBox", {
+        Position = UDim2.new(0.08, 0, 0.32, 0), Size = UDim2.new(0.84, 0, 0, 46),
+        BackgroundColor3 = C.card, TextColor3 = C.text, PlaceholderText = L.keyHint,
+        PlaceholderColor3 = C.sub, Text = "", ClearTextOnFocus = false,
+        Font = Enum.Font.GothamBold, TextSize = 18,
+    }, p)
+    corner(box, 14); stroke(box, C.accent, 1.5, 0.3)
+
+    local msg = new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0.08, 0, 0.32, 52),
+        Size = UDim2.new(0.84, 0, 0, 22), Text = "", TextColor3 = C.bad,
+        Font = Enum.Font.GothamBold, TextSize = 14}, p)
+
+    local btn = bigButton(p, L.keyBtn, UDim2.new(0.08, 0, 1, -70), UDim2.new(0.84, 0, 0, 48))
+    btn.TextSize = 18
+
+    local busy = false
+    local function submit()
+        if busy then return end
+        local v = box.Text
+        if v == "" then
+            msg.TextColor3 = C.bad; msg.Text = L.keyEmpty
+            return
+        end
+        if v == KEY then
+            busy = true
+            msg.TextColor3 = C.good; msg.Text = L.keyOk
+            task.wait(0.5)
+            p:Destroy()
+            buildMain()
+        else
+            msg.TextColor3 = C.bad; msg.Text = L.keyBad
+            box.Text = ""
+            local o = p.Position
+            for i = 1, 4 do
+                p.Position = o + UDim2.new(0, (i % 2 == 0) and 8 or -8, 0, 0)
+                task.wait(0.04)
+            end
+            p.Position = o
+        end
+    end
+    btn.MouseButton1Click:Connect(submit)
+    box.FocusLost:Connect(function(enter) if enter then submit() end end)
+end
+
+local function showLanguage()
+    local p = makePanel()
+    new("TextLabel", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 56),
+        Text = "SELECT LANGUAGE / اختر اللغة", TextColor3 = C.text,
+        Font = Enum.Font.GothamBold, TextSize = 20}, p)
+    new("Frame", {Position = UDim2.new(0.05, 0, 0, 56), Size = UDim2.new(0.9, 0, 0, 2),
+        BackgroundColor3 = C.line, BorderSizePixel = 0}, p)
+    new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 0, 0, 66),
+        Size = UDim2.new(1, 0, 0, 30), Text = "Choose your language / اختر لغتك",
+        TextColor3 = C.sub, Font = Enum.Font.Gotham, TextSize = 16}, p)
+
+    local en = bigButton(p, "ENGLISH", UDim2.new(0.06, 0, 0.5, 0), UDim2.new(0.41, 0, 0, 62))
+    local ar = bigButton(p, "العربية", UDim2.new(0.53, 0, 0.5, 0), UDim2.new(0.41, 0, 0, 62))
+    en.MouseButton1Click:Connect(function() L = TXT.en; p:Destroy(); showKey() end)
+    ar.MouseButton1Click:Connect(function() L = TXT.ar; p:Destroy(); showKey() end)
+end
+
+-- ============ منطق اللعب ============
+local function getChar(p)
+    local c = p and p.Character
+    if not c then return nil end
+    local h = c:FindFirstChildOfClass("Humanoid")
+    local r = c:FindFirstChild("HumanoidRootPart")
+    if h and r and h.Health > 0 then return c, h, r end
+    return nil
+end
+
+local function nameLooksBomb(n)
+    n = string.lower(n)
+    return string.find(n, "bomb", 1, true) ~= nil or string.find(n, "tnt", 1, true) ~= nil
+        or string.find(n, "dynamite", 1, true) ~= nil
+end
+
+local function hasBomb(p)
+    local c = p.Character
+    if not c then return false end
+    for _, item in ipairs(c:GetChildren()) do
+        if item:IsA("Tool") then return true end
+    end
+    for _, n in ipairs({"HasBomb", "Bomb", "IsBomb", "BombHolder", "Holding", "IsIt", "It", "hasBomb"}) do
+        if c:GetAttribute(n) == true or p:GetAttribute(n) == true then return true end
+    end
+    for _, d in ipairs(c:GetDescendants()) do
+        if nameLooksBomb(d.Name) then
+            if d:IsA("BoolValue") then
+                if d.Value then return true end
+            elseif d:IsA("BasePart") or d:IsA("Model") or d:IsA("Tool") then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function findHolder()
+    if hasBomb(lp) then return lp end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and hasBomb(p) then return p end
+    end
+    -- احتياط: قنبلة متحركة في الـ Workspace قريبة من لاعب
+    for _, o in ipairs(Workspace:GetChildren()) do
+        if nameLooksBomb(o.Name) and not Players:GetPlayerFromCharacter(o) then
+            local part = nil
+            if o:IsA("BasePart") then
+                part = o
+            elseif o:IsA("Model") then
+                part = o.PrimaryPart or o:FindFirstChildWhichIsA("BasePart", true)
+            end
+            if part and not part.Anchored then
+                local best, bd = nil, 8
+                for _, p in ipairs(Players:GetPlayers()) do
+                    local _, _, r = getChar(p)
+                    if r then
+                        local d = (r.Position - part.Position).Magnitude
+                        if d < bd then best, bd = p, d end
+                    end
+                end
+                if best then return best end
+            end
+        end
+    end
+    return nil
+end
+
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+local lastChar = nil
+
+local function clearDist(origin, dir, len)
+    local res = Workspace:Raycast(origin, dir.Unit * len, rayParams)
+    if res and res.Instance and res.Instance.CanCollide then
+        local m = res.Instance:FindFirstAncestorOfClass("Model")
+        if m and Players:GetPlayerFromCharacter(m) then return len end
+        return res.Distance
+    end
+    return len
+end
+
+local function steer(r, dir)
+    local origin = r.Position
+    local len = S.wall + 2
+    local d = clearDist(origin, dir, len)
+    if d >= S.wall then return dir, false end
+    local best, bd = dir, d
+    for _, ang in ipairs({35, -35, 70, -70, 110, -110}) do
+        local rot = CFrame.Angles(0, math.rad(ang), 0):VectorToWorldSpace(dir)
+        local dd = clearDist(origin, rot, len)
+        if dd > bd then best, bd = rot, dd end
+    end
+    return best, bd < S.wall * 0.5
+end
+
+local function moveTo(h, r, dir, dt, jump)
+    h:MoveTo(r.Position + Vector3.new(dir.X, 0, dir.Z) * 14)
+    local target = CFrame.lookAt(r.Position, r.Position + Vector3.new(dir.X, 0, dir.Z))
+    local a = S.fastTurn and 1 or (1 - math.exp(-S.turnPower * 0.35 * dt))
+    r.CFrame = r.CFrame:Lerp(target, a)
+    if jump then h.Jump = true end
+end
+
+local function nearestTarget(myRoot)
+    local best, bd = nil, math.huge
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp then
+            local _, _, r = getChar(p)
+            if r then
+                local d = (r.Position - myRoot.Position).Magnitude
+                if d < bd then best, bd = r, d end
+            end
+        end
+    end
+    return best, bd
+end
+
+-- الاسيست الأصلي: يروح لأقرب خصم
+local function doChase(dt, h, r)
+    local tr = nearestTarget(r)
+    if tr then
+        h:MoveTo(tr.Position)
+    end
+end
+
+local function doFlee(dt, h, r, holder)
+    local _, _, hr = getChar(holder)
+    if not hr then return end
+    local diff = Vector3.new(r.Position.X - hr.Position.X, 0, r.Position.Z - hr.Position.Z)
+    local dist = diff.Magnitude
+    local radius = math.max(S.follow * 4, 12)
+    if dist > radius or dist < 0.05 then h:MoveTo(r.Position) return end
+    local away = diff.Unit
+    if S.mode == "pro" then
+        local best, bs, bclear = away, -math.huge, 0
+        local span = S.wall + 6
+        for i = 0, 11 do
+            local d = CFrame.Angles(0, math.rad(i * 30), 0):VectorToWorldSpace(away)
+            local clear = clearDist(r.Position, d, span)
+            local score = d:Dot(away) * 2 + (clear / span) * 2
+            if score > bs then best, bs, bclear = d, score, clear end
+        end
+        moveTo(h, r, best, dt, bclear < S.wall * 0.5)
+    else
+        local perp = Vector3.new(-away.Z, 0, away.X)
+        local dir = (away + perp * 0.5 * math.sin(os.clock() * 2.5)).Unit
+        local jump
+        dir, jump = steer(r, dir)
+        moveTo(h, r, dir, dt, jump)
+    end
+end
+
+-- كشف تحكم اللاعب (عصا الجوال / الكيبورد)
+local controls = nil
+local lastUser = 0
+task.spawn(function()
+    pcall(function()
+        local ps = lp:WaitForChild("PlayerScripts", 5)
+        local pm = ps and ps:WaitForChild("PlayerModule", 5)
+        if pm then controls = require(pm):GetControls() end
+    end)
+end)
+
+-- مسافة الابتعاد: حاجز غير مرئي يمنعك تقرب من الجدار أكثر من المسافة المحددة
+local gapParams = RaycastParams.new()
+gapParams.FilterType = Enum.RaycastFilterType.Exclude
+local gapChar = nil
+local GAP_RADIUS = 1.2 -- نصف عرض الشخصية تقريبًا
+local function wallKeepAway(r)
+    local gap = S.gap
+    if not gap or gap <= 0 then return end
+    local limit = gap + GAP_RADIUS
+    local origin0 = r.Position
+    local push = Vector3.zero
+    local v = r.AssemblyLinearVelocity
+    for _, hy in ipairs({0.5, -2}) do          -- مستوى الصدر + مستوى القدم (للحواجز الواطية)
+        local origin = origin0 + Vector3.new(0, hy, 0)
+        for i = 0, 7 do
+            local d = CFrame.Angles(0, math.rad(i * 45), 0):VectorToWorldSpace(Vector3.new(0, 0, -1))
+            local res = Workspace:Raycast(origin, d * limit, gapParams)
+            if res and res.Instance and res.Instance.CanCollide and res.Normal.Y < 0.5 then
+                local m = res.Instance:FindFirstAncestorOfClass("Model")
+                if not (m and Players:GetPlayerFromCharacter(m)) then
+                    local n = Vector3.new(res.Normal.X, 0, res.Normal.Z)
+                    if n.Magnitude > 0.01 then
+                        n = n.Unit
+                        local pen = limit - res.Distance
+                        if pen > 0 then push = push + n * pen end
+                        local into = v:Dot(n)
+                        if into < 0 then v = v - n * into end   -- امنع الحركة باتجاه الجدار
+                    end
+                end
+            end
+        end
+    end
+    r.AssemblyLinearVelocity = Vector3.new(v.X, r.AssemblyLinearVelocity.Y, v.Z)
+    if push.Magnitude > 0.01 then
+        local step = math.min(push.Magnitude * 0.4, 1.2)
+        r.CFrame = r.CFrame + push.Unit * step
+    end
+end
+
+local function userIsMoving()
+    if controls then
+        local ok, v = pcall(function() return controls:GetMoveVector() end)
+        if ok and v then return v.Magnitude > 0.1 end
+    end
+    local k = Enum.KeyCode
+    return UserInputService:IsKeyDown(k.W) or UserInputService:IsKeyDown(k.A)
+        or UserInputService:IsKeyDown(k.S) or UserInputService:IsKeyDown(k.D)
+end
+
+-- قراءة الوقت المتبقي على القنبلة
+local TIME_KEYS = {"time", "timer", "fuse", "countdown", "remain", "seconds"}
+local function isTimeName(n)
+    n = string.lower(n)
+    for _, k in ipairs(TIME_KEYS) do
+        if string.find(n, k, 1, true) then return true end
+    end
+    return false
+end
+local function parseNum(t)
+    if type(t) ~= "string" then return nil end
+    local m, sec = string.match(t, "^%s*(%d+):(%d+)%s*$")
+    if m then return tonumber(m) * 60 + tonumber(sec) end
+    local n = string.match(t, "^%s*(%d+%.?%d*)%s*[sS]?%s*$")
+    return n and tonumber(n) or nil
+end
+local function readBombTime(p)
+    local c = p.Character
+    if not c then return nil end
+    for _, root in ipairs({c, p}) do
+        for k, v in pairs(root:GetAttributes()) do
+            if type(v) == "number" and isTimeName(k) then return v end
+        end
+    end
+    for _, d in ipairs(c:GetDescendants()) do
+        if (d:IsA("NumberValue") or d:IsA("IntValue")) and isTimeName(d.Name) then
+            return d.Value
+        end
+        for k, v in pairs(d:GetAttributes()) do
+            if type(v) == "number" and isTimeName(k) then return v end
+        end
+        if d:IsA("TextLabel") then
+            local n = parseNum(d.Text)
+            if n and n <= 60 then return n end
+        end
+    end
+    return nil
+end
+-- مؤقت ظاهر على الشاشة (اسمه أو أحد آبائه فيه bomb / fuse)
+local function readScreenTimer(ownGui)
+    local pg = lp:FindFirstChildOfClass("PlayerGui")
+    if not pg then return nil end
+    for _, d in ipairs(pg:GetDescendants()) do
+        if d:IsA("TextLabel") and d.Visible and not d:IsDescendantOf(ownGui) then
+            local n = parseNum(d.Text)
+            if n and n <= 60 then
+                local cur = d
+                while cur and cur ~= pg do
+                    local nm = string.lower(cur.Name)
+                    if string.find(nm, "bomb", 1, true) or string.find(nm, "fuse", 1, true) then
+                        return n
+                    end
+                    cur = cur.Parent
+                end
+            end
+        end
+    end
+    return nil
+end
+
+-- نقاط (leaderstats)
+local function readPoints()
+    local ls = lp:FindFirstChild("leaderstats")
+    if not ls then return nil end
+    for _, v in ipairs(ls:GetChildren()) do
+        local n = string.lower(v.Name)
+        if (v:IsA("IntValue") or v:IsA("NumberValue"))
+            and (string.find(n, "point", 1, true) or string.find(n, "score", 1, true) or string.find(n, "round", 1, true)) then
+            return v.Value
+        end
+    end
+    return nil
+end
+
+-- ============ الواجهة الرئيسية ============
+function buildMain()
+    local statusLbl = nil
+    local win = new("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0.52, 0, 0.9, 0), BackgroundColor3 = C.bg, ClipsDescendants = true,
+    }, gui)
+    new("UISizeConstraint", {MinSize = Vector2.new(320, 220), MaxSize = Vector2.new(580, 460)}, win)
+    corner(win, 22); stroke(win, C.accent, 2, 0.15)
+    gradient(win, Color3.fromRGB(8, 20, 60), C.bg, 90)
+
+    -- الهيدر
+    local header = new("Frame", {Size = UDim2.new(1, 0, 0, 56), BackgroundTransparency = 1, Active = true}, win)
+    new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 0), Size = UDim2.new(0, 90, 1, 0),
+        Text = L.title, TextColor3 = C.text, Font = Enum.Font.GothamBlack, TextSize = 22,
+        TextXAlignment = Enum.TextXAlignment.Left}, header)
+    new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 96, 0, 0), Size = UDim2.new(0, 130, 1, 0),
+        Text = L.sub, TextColor3 = C.sub, Font = Enum.Font.Gotham, TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left}, header)
+    local pingLbl = new("TextLabel", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -108, 0, 0), Size = UDim2.new(0, 120, 1, 0), Text = "--ms",
+        TextColor3 = C.accent2, Font = Enum.Font.GothamBlack, TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Right}, header)
+
+    local minBtn = new("TextButton", {Text = "▢", AutoButtonColor = false, AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -52, 0.5, 0), Size = UDim2.new(0, 38, 0, 36), BackgroundColor3 = C.card,
+        TextColor3 = C.accent2, Font = Enum.Font.GothamBold, TextSize = 16}, header)
+    corner(minBtn, 9)
+    local closeBtn = new("TextButton", {Text = "X", AutoButtonColor = false, AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.new(0, 38, 0, 36), BackgroundColor3 = C.accent,
+        TextColor3 = C.text, Font = Enum.Font.GothamBlack, TextSize = 16}, header)
+    corner(closeBtn, 9)
+
+    new("Frame", {Position = UDim2.new(0.03, 0, 0, 56), Size = UDim2.new(0.94, 0, 0, 2),
+        BackgroundColor3 = C.line, BorderSizePixel = 0}, win)
+
+    -- المحتوى
+    local body = new("ScrollingFrame", {
+        Position = UDim2.new(0, 0, 0, 62), Size = UDim2.new(1, 0, 1, -62), BackgroundTransparency = 1,
+        BorderSizePixel = 0, ScrollBarThickness = 4, ScrollBarImageColor3 = C.accent,
+        CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    }, win)
+    new("UIListLayout", {Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder}, body)
+    new("UIPadding", {PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14),
+        PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 16)}, body)
+
+    local order = 0
+    local function nextOrder() order = order + 1 return order end
+
+    local function section(text)
+        local f = new("Frame", {Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = nextOrder()}, body)
+        new("Frame", {AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0),
+            Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = C.line, BorderSizePixel = 0}, f)
+        local t = new("TextLabel", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0, 0, 0, 22), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = C.bg,
+            Text = "  " .. text .. "  ", TextColor3 = C.accent2, Font = Enum.Font.GothamBold, TextSize = 13}, f)
+        return f
+    end
+
+    local function rowBase(h)
+        local row = new("Frame", {Size = UDim2.new(1, 0, 0, h), BackgroundColor3 = C.card, LayoutOrder = nextOrder()}, body)
+        corner(row, 14); stroke(row, C.line, 1, 0.5)
+        new("Frame", {Position = UDim2.new(0, 0, 0.2, 0), Size = UDim2.new(0, 3, 0.6, 0),
+            BackgroundColor3 = C.accent, BorderSizePixel = 0}, row)
+        return row
+    end
+
+    local function makeToggle(label, default, cb)
+        local row = rowBase(46)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 0), Size = UDim2.new(1, -90, 1, 0),
+            Text = label, TextColor3 = C.text, Font = Enum.Font.GothamMedium, TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left}, row)
+        local sw = new("TextButton", {Text = "", AutoButtonColor = false, Size = UDim2.new(0, 54, 0, 26),
+            Position = UDim2.new(1, -66, 0.5, -13), BackgroundColor3 = C.off}, row)
+        corner(sw, 13)
+        local knob = new("Frame", {Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 3, 0.5, -10),
+            BackgroundColor3 = Color3.new(1, 1, 1)}, sw)
+        corner(knob, 10)
+        local state = default
+        local function render()
+            TweenService:Create(knob, TweenInfo.new(0.15), {
+                Position = state and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)}):Play()
+            TweenService:Create(sw, TweenInfo.new(0.15), {BackgroundColor3 = state and C.accent or C.off}):Play()
+        end
+        render()
+        sw.MouseButton1Click:Connect(function()
+            state = not state
+            render()
+            cb(state)
+        end)
+        return {
+            set = function(v) state = v render() end,
+            get = function() return state end,
+        }
+    end
+
+    local function makeSlider(label, min, max, default, step, cb)
+        local row = rowBase(64)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 6), Size = UDim2.new(1, -90, 0, 24),
+            Text = label, TextColor3 = C.text, Font = Enum.Font.GothamMedium, TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left}, row)
+        local valLbl = new("TextLabel", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0),
+            Position = UDim2.new(1, -14, 0, 6), Size = UDim2.new(0, 60, 0, 24), Text = "",
+            TextColor3 = C.accent2, Font = Enum.Font.GothamBlack, TextSize = 15,
+            TextXAlignment = Enum.TextXAlignment.Right}, row)
+        local track = new("Frame", {Position = UDim2.new(0, 16, 1, -22), Size = UDim2.new(1, -32, 0, 8),
+            BackgroundColor3 = C.off, BorderSizePixel = 0}, row)
+        corner(track, 4)
+        local fill = new("Frame", {Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = C.accent, BorderSizePixel = 0}, track)
+        corner(fill, 4)
+        local knob = new("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.new(0, 22, 0, 22),
+            Position = UDim2.new(0, 0, 0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 3}, track)
+        corner(knob, 11); stroke(knob, C.accent2, 2, 0)
+        local hit = new("TextButton", {Text = "", BackgroundTransparency = 1, Position = UDim2.new(0, -10, 0, -14),
+            Size = UDim2.new(1, 20, 1, 28), ZIndex = 4}, track)
+
+        local function setValue(v)
+            v = math.clamp(math.floor(v / step + 0.5) * step, min, max)
+            local rel = (v - min) / (max - min)
+            fill.Size = UDim2.new(rel, 0, 1, 0)
+            knob.Position = UDim2.new(rel, 0, 0.5, 0)
+            valLbl.Text = string.format("%g", v)
+            return v
+        end
+        setValue(default)
+
+        local dragging = false
+        local function fromX(x)
+            local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
+            local v = setValue(min + (max - min) * rel)
+            cb(v)
+        end
+        hit.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                body.ScrollingEnabled = false
+                fromX(i.Position.X)
+            end
+        end)
+        table.insert(conns, UserInputService.InputChanged:Connect(function(i)
+            if dragging and (i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseMovement) then
+                fromX(i.Position.X)
+            end
+        end))
+        table.insert(conns, UserInputService.InputEnded:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+                body.ScrollingEnabled = true
+            end
+        end))
+    end
+
+    -- بطاقة الترحيب
+    do
+        local card = new("Frame", {Size = UDim2.new(1, 0, 0, 92), BackgroundColor3 = C.cardHi, LayoutOrder = nextOrder()}, body)
+        corner(card, 16); stroke(card, C.accent2, 1.5, 0.3)
+        gradient(card, Color3.fromRGB(25, 90, 220), Color3.fromRGB(8, 30, 100), 45)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 10), Size = UDim2.new(1, -32, 0, 30),
+            Text = L.welcome .. " " .. lp.Name, TextColor3 = C.text, Font = Enum.Font.GothamBold, TextSize = 18,
+            TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd}, card)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 40), Size = UDim2.new(1, -32, 0, 18),
+            Text = "ASTA", TextColor3 = C.accent2, Font = Enum.Font.GothamBlack, TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left}, card)
+        statusLbl = new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 62), Size = UDim2.new(1, -32, 0, 20),
+            Text = L.status .. ": " .. L.holderNone, TextColor3 = C.text, Font = Enum.Font.GothamMedium, TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd}, card)
+    end
+
+    -- اعدادات المبارزة
+    section(L.secDuel)
+    local autoToggle
+    autoToggle = makeToggle(L.auto, false, function(v)
+        S.auto = v
+        notify((v and L.on or L.off) .. " " .. L.auto, v and C.good or C.bad)
+    end)
+
+    -- الاعدادات
+    section(L.secSet)
+    makeSlider(L.waitSec, 1, 10, S.delay, 1, function(v) S.delay = v end)
+    makeSlider(L.follow, 1, 10, S.follow, 0.5, function(v) S.follow = v end)
+    makeToggle(L.fastTurn, false, function(v) S.fastTurn = v end)
+    makeSlider(L.turnPower, 5, 45, S.turnPower, 1, function(v) S.turnPower = v end)
+    makeToggle(L.gap, true, function(v) S.gapOn = v end)
+    makeToggle(L.stretch, false, function(v)
+        S.stretch = v
+        if not v then
+            local cam = Workspace.CurrentCamera
+            if cam then cam.FieldOfView = 70 end
+        end
+    end)
+    makeToggle(L.smooth, false, function(v)
+        S.smooth = v
+        pcall(function() if setfpscap then setfpscap(v and 240 or 60) end end)
+        pcall(function() settings().Rendering.QualityLevel = v and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic end)
+    end)
+
+    -- سحب النافذة
+    do
+        local dragging, dragStart, startPos = false, nil, nil
+        header.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging, dragStart, startPos = true, i.Position, win.Position
+            end
+        end)
+        table.insert(conns, UserInputService.InputChanged:Connect(function(i)
+            if dragging and (i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseMovement) then
+                local d = i.Position - dragStart
+                win.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            end
+        end))
+        table.insert(conns, UserInputService.InputEnded:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end))
+    end
+
+    -- حذف السكربت نهائيًا
+    local function unload()
+        closed = true
+        S.auto = false
+        for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+        local cam = Workspace.CurrentCamera
+        if cam and S.stretch then cam.FieldOfView = 70 end
+        pcall(function() if setfpscap and S.smooth then setfpscap(60) end end)
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
+        pcall(function() RunService:UnbindFromRenderStep("AstaTBLoop") end)
+        gui:Destroy()
+    end
+
+    -- نافذة التأكيد (نعم / لا)
+    local confirmFrame = nil
+    local function askDelete()
+        if confirmFrame and confirmFrame.Parent then return end
+        local overlay = new("TextButton", {Text = "", AutoButtonColor = false, Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.45, ZIndex = 100}, gui)
+        confirmFrame = overlay
+        local box = new("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0.6, 0, 0, 170), BackgroundColor3 = C.bg, ZIndex = 101}, overlay)
+        new("UISizeConstraint", {MinSize = Vector2.new(280, 170), MaxSize = Vector2.new(440, 170)}, box)
+        corner(box, 20); stroke(box, C.accent, 2, 0.15)
+        gradient(box, Color3.fromRGB(8, 20, 60), C.bg, 90)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 10, 0, 12), Size = UDim2.new(1, -20, 0, 60),
+            Text = L.confirm, TextColor3 = C.text, Font = Enum.Font.GothamBold, TextSize = 17,
+            TextWrapped = true, ZIndex = 102}, box)
+        local yes = bigButton(box, L.yes, UDim2.new(0.06, 0, 1, -76), UDim2.new(0.41, 0, 0, 56))
+        local no  = bigButton(box, L.no,  UDim2.new(0.53, 0, 1, -76), UDim2.new(0.41, 0, 0, 56))
+        yes.ZIndex = 102; no.ZIndex = 102
+        yes.BackgroundColor3 = C.bad
+        yes.MouseButton1Click:Connect(unload)
+        no.MouseButton1Click:Connect(function() overlay:Destroy(); confirmFrame = nil end)
+    end
+
+    -- القائمة الصغيرة (ترجعك للسكربت)
+    local pill = new("TextButton", {
+        Text = L.pill, AutoButtonColor = false, AnchorPoint = Vector2.new(0.5, 0),
+        Position = UDim2.new(0.5, 0, 0, 8), Size = UDim2.new(0, 120, 0, 34),
+        BackgroundColor3 = C.cardHi, TextColor3 = C.text, Font = Enum.Font.GothamBlack,
+        TextSize = 15, Visible = false, ZIndex = 20,
+    }, gui)
+    corner(pill, 17); stroke(pill, C.accent2, 1.5, 0.2)
+    gradient(pill, Color3.fromRGB(30, 100, 230), Color3.fromRGB(10, 40, 130), 90)
+
+    -- المربع ▢ = يخفي السكربت ويطلع القائمة الصغيرة (السكربت يظل شغال)
+    minBtn.MouseButton1Click:Connect(function()
+        win.Visible = false
+        pill.Visible = true
+    end)
+    pill.MouseButton1Click:Connect(function()
+        win.Visible = true
+        pill.Visible = false
+    end)
+
+    -- X = تأكيد الحذف (نعم / لا)
+    closeBtn.MouseButton1Click:Connect(askDelete)
+
+    -- حلقة التحديث
+    local holder, lastScan, lastPing = nil, 0, 0
+    local bombSince, lastHolderTime, realTime, lastScreen = nil, 0, nil, 0
+    table.insert(conns, RunService.Heartbeat:Connect(function(dt)
+        if closed then return end
+        local now = os.clock()
+
+        -- البنق
+        if now - lastPing > 0.5 then
+            lastPing = now
+            local ok, v = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+            if ok and v then pingLbl.Text = math.floor(v) .. "ms  " .. L.ping end
+        end
+
+        -- تمديد الشاشة
+        if S.stretch then
+            local cam = Workspace.CurrentCamera
+            if cam then cam.FieldOfView = 100 end
+        end
+
+        -- كشف حامل القنبلة + الوقت المتبقي
+        if now - lastScan > 0.12 then
+            lastScan = now
+            holder = findHolder()
+            if holder then
+                lastHolderTime = now
+                if not bombSince then bombSince = now end
+                realTime = readBombTime(holder)
+                if not realTime and now - lastScreen > 0.25 then
+                    lastScreen = now
+                    realTime = readScreenTimer(gui)
+                end
+            else
+                realTime = nil
+                if bombSince and now - lastHolderTime > 1.5 then bombSince = nil end
+            end
+        end
+
+        local remaining, isReal = nil, false
+        if realTime then
+            remaining, isReal = realTime, true
+        elseif bombSince then
+            remaining = math.max(S.total - (now - bombSince), 0)
+        end
+
+        if statusLbl and now - lastScan < 0.02 then
+            local tail = ""
+            if remaining then
+                tail = string.format(" | %.1f%s", remaining, isReal and "s" or "s~")
+            end
+            if holder == lp then statusLbl.Text = L.status .. ": " .. L.holderYou .. tail
+            elseif holder then statusLbl.Text = L.status .. ": " .. L.holderOther .. holder.Name .. tail
+            else statusLbl.Text = L.status .. ": " .. L.holderNone end
+        end
+
+        if S.gapOn then
+            local c0, h0, r0 = getChar(lp)
+            if c0 then
+                if c0 ~= gapChar then gapChar = c0; gapParams.FilterDescendantsInstances = {c0} end
+                wallKeepAway(r0)
+            end
+        end
+
+        if not S.auto then return end
+
+        local c, h, r = getChar(lp)
+        if not c then return end
+        if c ~= lastChar then
+            lastChar = c
+            rayParams.FilterDescendantsInstances = {c}
+        end
+
+        if S.manualFirst then
+            if userIsMoving() then lastUser = now end
+            if now - lastUser < 0.15 then return end
+        end
+
+        -- الحد الأقصى: ما يشتغل الاوتو إلا لما الوقت المتبقي على القنبلة (عندك أو عند الخصم) <= القيمة
+        if remaining and remaining > S.delay then return end
+
+        if holder == lp then
+            doChase(dt, h, r)
+        elseif holder and S.flee then
+            doFlee(dt, h, r, holder)
+        end
+    end))
+end
+
+showLanguage()
