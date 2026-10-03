@@ -1021,7 +1021,7 @@ function createKeySystem()
     subCorner.Parent = submitBtn
 
     submitBtn.MouseButton1Click:Connect(function()
-        if textBox.Text == "asta.44" then
+        if textBox.Text == "mmkkmm" then
             keyFrame:Destroy()
             showSuccessNotification()
             autoFrame.Visible = true
