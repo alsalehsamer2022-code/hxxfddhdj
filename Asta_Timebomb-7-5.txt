@@ -11,7 +11,7 @@ local Stats            = game:GetService("Stats")
 local Workspace        = game:GetService("Workspace")
 local lp               = Players.LocalPlayer
 
-local KEY = "MGGJ44"
+local KEY = "HIGG11"
 
 -- ============ ألوان (أزرق) ============
 local C = {
@@ -220,6 +220,612 @@ local function getChar(p)
     local c = p and p.Character
     if not c then return nil end
     local h = c:FindFirstChildOfClass("Humanoid")
+    local r = c:FindFirstChild("HumanoidRootPart")
+    if h and r and h.Health > 0 then return c, h, r end
+    return nil
+end
+
+local function nameLooksBomb(n)
+    n = string.lower(n)
+    return string.find(n, "bomb", 1, true) ~= nil or string.find(n, "tnt", 1, true) ~= nil
+        or string.find(n, "dynamite", 1, true) ~= nil
+end
+
+local function hasBomb(p)
+    local c = p.Character
+    if not c then return false end
+    for _, item in ipairs(c:GetChildren()) do
+        if item:IsA("Tool") then return true end
+    end
+    for _, n in ipairs({"HasBomb", "Bomb", "IsBomb", "BombHolder", "Holding", "IsIt", "It", "hasBomb"}) do
+        if c:GetAttribute(n) == true or p:GetAttribute(n) == true then return true end
+    end
+    for _, d in ipairs(c:GetDescendants()) do
+        if nameLooksBomb(d.Name) then
+            if d:IsA("BoolValue") then
+                if d.Value then return true end
+            elseif d:IsA("BasePart") or d:IsA("Model") or d:IsA("Tool") then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function findHolder()
+    if hasBomb(lp) then return lp end
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp and hasBomb(p) then return p end
+    end
+    for _, o in ipairs(Workspace:GetChildren()) do
+        if nameLooksBomb(o.Name) and not Players:GetPlayerFromCharacter(o) then
+            local part = nil
+            if o:IsA("BasePart") then
+                part = o
+            elseif o:IsA("Model") then
+                part = o.PrimaryPart or o:FindFirstChildWhichIsA("BasePart", true)
+            end
+            if part and not part.Anchored then
+                local best, bd = nil, 8
+                for _, p in ipairs(Players:GetPlayers()) do
+                    local _, _, r = getChar(p)
+                    if r then
+                        local d = (r.Position - part.Position).Magnitude
+                        if d < bd then best, bd = p, d end
+                    end
+                end
+                if best then return best end
+            end
+        end
+    end
+    return nil
+end
+
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Exclude
+local lastChar = nil
+
+local function clearDist(origin, dir, len)
+    local res = Workspace:Raycast(origin, dir.Unit * len, rayParams)
+    if res and res.Instance and res.Instance.CanCollide then
+        local m = res.Instance:FindFirstAncestorOfClass("Model")
+        if m and Players:GetPlayerFromCharacter(m) then return len end
+        return res.Distance
+    end
+    return len
+end
+
+local function steer(r, dir)
+    local origin = r.Position
+    local len = S.wall + 2
+    local d = clearDist(origin, dir, len)
+    if d >= S.wall then return dir, false end
+    local best, bd = dir, d
+    for _, ang in ipairs({35, -35, 70, -70, 110, -110}) do
+        local rot = CFrame.Angles(0, math.rad(ang), 0):VectorToWorldSpace(dir)
+        local dd = clearDist(origin, rot, len)
+        if dd > bd then best, bd = rot, dd end
+    end
+    return best, bd < S.wall * 0.5
+end
+
+local function moveTo(h, r, dir, dt, jump)
+    h:MoveTo(r.Position + Vector3.new(dir.X, 0, dir.Z) * 14)
+    local target = CFrame.lookAt(r.Position, r.Position + Vector3.new(dir.X, 0, dir.Z))
+    local a = S.fastTurn and 1 or (1 - math.exp(-S.turnPower * 0.35 * dt))
+    r.CFrame = r.CFrame:Lerp(target, a)
+    if jump then h.Jump = true end
+end
+
+local function nearestTarget(myRoot)
+    local best, bd = nil, math.huge
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= lp then
+            local _, _, r = getChar(p)
+            if r then
+                local d = (r.Position - myRoot.Position).Magnitude
+                if d < bd then best, bd = r, d end
+            end
+        end
+    end
+    return best, bd
+end
+
+local function doChase(dt, h, r)
+    local tr = nearestTarget(r)
+    if tr then
+        h:MoveTo(tr.Position)
+    end
+end
+
+local function doFlee(dt, h, r, holder)
+    local _, _, hr = getChar(holder)
+    if not hr then return end
+    local diff = Vector3.new(r.Position.X - hr.Position.X, 0, r.Position.Z - hr.Position.Z)
+    local dist = diff.Magnitude
+    local radius = math.max(S.follow * 4, 12)
+    if dist > radius or dist < 0.05 then h:MoveTo(r.Position) return end
+    local away = diff.Unit
+    if S.mode == "pro" then
+        local best, bs, bclear = away, -math.huge, 0
+        local span = S.wall + 6
+        for i = 0, 11 do
+            local d = CFrame.Angles(0, math.rad(i * 30), 0):VectorToWorldSpace(away)
+            local clear = clearDist(r.Position, d, span)
+            local score = d:Dot(away) * 2 + (clear / span) * 2
+            if score > bs then best, bs, bclear = d, score, clear end
+        end
+        moveTo(h, r, best, dt, bclear < S.wall * 0.5)
+    else
+        local perp = Vector3.new(-away.Z, 0, away.X)
+        local dir = (away + perp * 0.5 * math.sin(os.clock() * 2.5)).Unit
+        local jump
+        dir, jump = steer(r, dir)
+        moveTo(h, r, dir, dt, jump)
+    end
+end
+
+local controls = nil
+local lastUser = 0
+task.spawn(function()
+    pcall(function()
+        local ps = lp:WaitForChild("PlayerScripts", 5)
+        local pm = ps and ps:WaitForChild("PlayerModule", 5)
+        if pm then controls = require(pm):GetControls() end
+    end)
+end)
+
+local gapParams = RaycastParams.new()
+gapParams.FilterType = Enum.RaycastFilterType.Exclude
+local gapChar = nil
+local GAP_RADIUS = 1.2
+local function wallKeepAway(r)
+    local gap = S.gap
+    if not gap or gap <= 0 then return end
+    local limit = gap + GAP_RADIUS
+    local origin0 = r.Position
+    local push = Vector3.zero
+    local v = r.AssemblyLinearVelocity
+    for _, hy in ipairs({0.5, -2}) do
+        local origin = origin0 + Vector3.new(0, hy, 0)
+        for i = 0, 7 do
+            local d = CFrame.Angles(0, math.rad(i * 45), 0):VectorToWorldSpace(Vector3.new(0, 0, -1))
+            local res = Workspace:Raycast(origin, d * limit, gapParams)
+            if res and res.Instance and res.Instance.CanCollide and res.Normal.Y < 0.5 then
+                local m = res.Instance:FindFirstAncestorOfClass("Model")
+                if not (m and Players:GetPlayerFromCharacter(m)) then
+                    local n = Vector3.new(res.Normal.X, 0, res.Normal.Z)
+                    if n.Magnitude > 0.01 then
+                        n = n.Unit
+                        local pen = limit - res.Distance
+                        if pen > 0 then push = push + n * pen end
+                        local into = v:Dot(n)
+                        if into < 0 then v = v - n * into end
+                    end
+                end
+            end
+        end
+    end
+    r.AssemblyLinearVelocity = Vector3.new(v.X, r.AssemblyLinearVelocity.Y, v.Z)
+    if push.Magnitude > 0.01 then
+        local step = math.min(push.Magnitude * 0.4, 1.2)
+        r.CFrame = r.CFrame + push.Unit * step
+    end
+end
+
+local function userIsMoving()
+    if controls then
+        local ok, v = pcall(function() return controls:GetMoveVector() end)
+        if ok and v then return v.Magnitude > 0.1 end
+    end
+    local k = Enum.KeyCode
+    return UserInputService:IsKeyDown(k.W) or UserInputService:IsKeyDown(k.A)
+        or UserInputService:IsKeyDown(k.S) or UserInputService:IsKeyDown(k.D)
+end
+
+local TIME_KEYS = {"time", "timer", "fuse", "countdown", "remain", "seconds"}
+local function isTimeName(n)
+    n = string.lower(n)
+    for _, k in ipairs(TIME_KEYS) do
+        if string.find(n, k, 1, true) then return true end
+    end
+    return false
+end
+local function parseNum(t)
+    if type(t) ~= "string" then return nil end
+    local m, sec = string.match(t, "^%s*(%d+):(%d+)%s*$")
+    if m then return tonumber(m) * 60 + tonumber(sec) end
+    local n = string.match(t, "^%s*(%d+%.?%d*)%s*[sS]?%s*$")
+    return n and tonumber(n) or nil
+end
+local function readBombTime(p)
+    local c = p.Character
+    if not c then return nil end
+    for _, root in ipairs({c, p}) do
+        for k, v in pairs(root:GetAttributes()) do
+            if type(v) == "number" and isTimeName(k) then return v end
+        end
+    end
+    for _, d in ipairs(c:GetDescendants()) do
+        if (d:IsA("NumberValue") or d:IsA("IntValue")) and isTimeName(d.Name) then
+            return d.Value
+        end
+        for k, v in pairs(d:GetAttributes()) do
+            if type(v) == "number" and isTimeName(k) then return v end
+        end
+        if d:IsA("TextLabel") then
+            local n = parseNum(d.Text)
+            if n and n <= 60 then return n end
+        end
+    end
+    return nil
+end
+
+local function readScreenTimer(ownGui)
+    local pg = lp:FindFirstChildOfClass("PlayerGui")
+    if not pg then return nil end
+    for _, d in ipairs(pg:GetDescendants()) do
+        if d:IsA("TextLabel") and d.Visible and not d:IsDescendantOf(ownGui) then
+            local n = parseNum(d.Text)
+            if n and n <= 60 then
+                local cur = d
+                while cur and cur ~= pg do
+                    local nm = string.lower(cur.Name)
+                    if string.find(nm, "bomb", 1, true) or string.find(nm, "fuse", 1, true) then
+                        return n
+                    end
+                    cur = cur.Parent
+                end
+            end
+        end
+    end
+    return nil
+end
+
+function buildMain()
+    local statusLbl = nil
+    local win = new("Frame", {
+        AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+        Size = UDim2.new(0.52, 0, 0.9, 0), BackgroundColor3 = C.bg, ClipsDescendants = true,
+    }, gui)
+    new("UISizeConstraint", {MinSize = Vector2.new(320, 220), MaxSize = Vector2.new(580, 460)}, win)
+    corner(win, 22); stroke(win, C.accent, 2, 0.15)
+    gradient(win, Color3.fromRGB(8, 20, 60), C.bg, 90)
+
+    local header = new("Frame", {Size = UDim2.new(1, 0, 0, 56), BackgroundTransparency = 1, Active = true}, win)
+    new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 0), Size = UDim2.new(0, 90, 1, 0),
+        Text = L.title, TextColor3 = C.text, Font = Enum.Font.GothamBlack, TextSize = 22,
+        TextXAlignment = Enum.TextXAlignment.Left}, header)
+    new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 96, 0, 0), Size = UDim2.new(0, 130, 1, 0),
+        Text = L.sub, TextColor3 = C.sub, Font = Enum.Font.Gotham, TextSize = 13,
+        TextXAlignment = Enum.TextXAlignment.Left}, header)
+    local pingLbl = new("TextLabel", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, -108, 0, 0), Size = UDim2.new(0, 120, 1, 0), Text = "--ms",
+        TextColor3 = C.accent2, Font = Enum.Font.GothamBlack, TextSize = 15,
+        TextXAlignment = Enum.TextXAlignment.Right}, header)
+
+    local minBtn = new("TextButton", {Text = "▢", AutoButtonColor = false, AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -52, 0.5, 0), Size = UDim2.new(0, 38, 0, 36), BackgroundColor3 = C.card,
+        TextColor3 = C.accent2, Font = Enum.Font.GothamBold, TextSize = 16}, header)
+    corner(minBtn, 9)
+    local closeBtn = new("TextButton", {Text = "X", AutoButtonColor = false, AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -10, 0.5, 0), Size = UDim2.new(0, 38, 0, 36), BackgroundColor3 = C.accent,
+        TextColor3 = C.text, Font = Enum.Font.GothamBlack, TextSize = 16}, header)
+    corner(closeBtn, 9)
+
+    new("Frame", {Position = UDim2.new(0.03, 0, 0, 56), Size = UDim2.new(0.94, 0, 0, 2),
+        BackgroundColor3 = C.line, BorderSizePixel = 0}, win)
+
+    local body = new("ScrollingFrame", {
+        Position = UDim2.new(0, 0, 0, 62), Size = UDim2.new(1, 0, 1, -62), BackgroundTransparency = 1,
+        BorderSizePixel = 0, ScrollBarThickness = 4, ScrollBarImageColor3 = C.accent,
+        CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    }, win)
+    new("UIListLayout", {Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder}, body)
+    new("UIPadding", {PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14),
+        PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 16)}, body)
+
+    local order = 0
+    local function nextOrder() order = order + 1 return order end
+
+    local function section(text)
+        local f = new("Frame", {Size = UDim2.new(1, 0, 0, 28), BackgroundTransparency = 1, LayoutOrder = nextOrder()}, body)
+        new("Frame", {AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 0, 0.5, 0),
+            Size = UDim2.new(1, 0, 0, 1), BackgroundColor3 = C.line, BorderSizePixel = 0}, f)
+        local t = new("TextLabel", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0, 0, 0, 22), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = C.bg,
+            Text = "  " .. text .. "  ", TextColor3 = C.accent2, Font = Enum.Font.GothamBold, TextSize = 13}, f)
+        return f
+    end
+
+    local function rowBase(h)
+        local row = new("Frame", {Size = UDim2.new(1, 0, 0, h), BackgroundColor3 = C.card, LayoutOrder = nextOrder()}, body)
+        corner(row, 14); stroke(row, C.line, 1, 0.5)
+        new("Frame", {Position = UDim2.new(0, 0, 0.2, 0), Size = UDim2.new(0, 3, 0.6, 0),
+            BackgroundColor3 = C.accent, BorderSizePixel = 0}, row)
+        return row
+    end
+
+    local function makeToggle(label, default, cb)
+        local row = rowBase(46)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 0), Size = UDim2.new(1, -90, 1, 0),
+            Text = label, TextColor3 = C.text, Font = Enum.Font.GothamMedium, TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left}, row)
+        local sw = new("TextButton", {Text = "", AutoButtonColor = false, Size = UDim2.new(0, 54, 0, 26),
+            Position = UDim2.new(1, -66, 0.5, -13), BackgroundColor3 = C.off}, row)
+        corner(sw, 13)
+        local knob = new("Frame", {Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 3, 0.5, -10),
+            BackgroundColor3 = Color3.new(1, 1, 1)}, sw)
+        corner(knob, 10)
+        local state = default
+        local function render()
+            TweenService:Create(knob, TweenInfo.new(0.15), {
+                Position = state and UDim2.new(1, -23, 0.5, -10) or UDim2.new(0, 3, 0.5, -10)}):Play()
+            TweenService:Create(sw, TweenInfo.new(0.15), {BackgroundColor3 = state and C.accent or C.off}):Play()
+        end
+        render()
+        sw.MouseButton1Click:Connect(function()
+            state = not state
+            render()
+            cb(state)
+        end)
+    end
+
+    local function makeSlider(label, min, max, default, step, cb)
+        local row = rowBase(64)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 6), Size = UDim2.new(1, -90, 0, 24),
+            Text = label, TextColor3 = C.text, Font = Enum.Font.GothamMedium, TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left}, row)
+        local valLbl = new("TextLabel", {BackgroundTransparency = 1, AnchorPoint = Vector2.new(1, 0),
+            Position = UDim2.new(1, -14, 0, 6), Size = UDim2.new(0, 60, 0, 24), Text = "",
+            TextColor3 = C.accent2, Font = Enum.Font.GothamBlack, TextSize = 15,
+            TextXAlignment = Enum.TextXAlignment.Right}, row)
+        local track = new("Frame", {Position = UDim2.new(0, 16, 1, -22), Size = UDim2.new(1, -32, 0, 8),
+            BackgroundColor3 = C.off, BorderSizePixel = 0}, row)
+        corner(track, 4)
+        local fill = new("Frame", {Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = C.accent, BorderSizePixel = 0}, track)
+        corner(fill, 4)
+        local knob = new("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.new(0, 22, 0, 22),
+            Position = UDim2.new(0, 0, 0.5, 0), BackgroundColor3 = Color3.new(1, 1, 1), ZIndex = 3}, track)
+        corner(knob, 11); stroke(knob, C.accent2, 2, 0)
+        local hit = new("TextButton", {Text = "", BackgroundTransparency = 1, Position = UDim2.new(0, -10, 0, -14),
+            Size = UDim2.new(1, 20, 1, 28), ZIndex = 4}, track)
+
+        local function setValue(v)
+            v = math.clamp(math.floor(v / step + 0.5) * step, min, max)
+            local rel = (v - min) / (max - min)
+            fill.Size = UDim2.new(rel, 0, 1, 0)
+            knob.Position = UDim2.new(rel, 0, 0.5, 0)
+            valLbl.Text = string.format("%g", v)
+            return v
+        end
+        setValue(default)
+
+        local dragging = false
+        local function fromX(x)
+            local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
+            local v = setValue(min + (max - min) * rel)
+            cb(v)
+        end
+        hit.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = true
+                body.ScrollingEnabled = false
+                fromX(i.Position.X)
+            end
+        end))
+        table.insert(conns, UserInputService.InputChanged:Connect(function(i)
+            if dragging and (i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseMovement) then
+                fromX(i.Position.X)
+            end
+        end))
+        table.insert(conns, UserInputService.InputEnded:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+                body.ScrollingEnabled = true
+            end
+        end))
+    end
+
+    do
+        local card = new("Frame", {Size = UDim2.new(1, 0, 0, 92), BackgroundColor3 = C.cardHi, LayoutOrder = nextOrder()}, body)
+        corner(card, 16); stroke(card, C.accent2, 1.5, 0.3)
+        gradient(card, Color3.fromRGB(25, 90, 220), Color3.fromRGB(8, 30, 100), 45)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 10), Size = UDim2.new(1, -32, 0, 30),
+            Text = L.welcome .. " " .. lp.Name, TextColor3 = C.text, Font = Enum.Font.GothamBold, TextSize = 18,
+            TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd}, card)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 40), Size = UDim2.new(1, -32, 0, 18),
+            Text = "ASTA", TextColor3 = C.accent2, Font = Enum.Font.GothamBlack, TextSize = 14,
+            TextXAlignment = Enum.TextXAlignment.Left}, card)
+        statusLbl = new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 16, 0, 62), Size = UDim2.new(1, -32, 0, 20),
+            Text = L.status .. ": " .. L.holderNone, TextColor3 = C.text, Font = Enum.Font.GothamMedium, TextSize = 13,
+            TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd}, card)
+    end
+
+    section(L.secDuel)
+    makeToggle(L.auto, false, function(v)
+        S.auto = v
+        notify((v and L.on or L.off) .. " " .. L.auto, v and C.good or C.bad)
+    end)
+
+    section(L.secSet)
+    makeSlider(L.waitSec, 1, 10, S.delay, 1, function(v) S.delay = v end)
+    makeSlider(L.follow, 1, 10, S.follow, 0.5, function(v) S.follow = v end)
+    makeToggle(L.fastTurn, false, function(v) S.fastTurn = v end)
+    makeSlider(L.turnPower, 5, 45, S.turnPower, 1, function(v) S.turnPower = v end)
+    makeToggle(L.gap, true, function(v) S.gapOn = v end)
+    makeToggle(L.stretch, false, function(v)
+        S.stretch = v
+        if not v then
+            local cam = Workspace.CurrentCamera
+            if cam then cam.FieldOfView = 70 end
+        end
+    end)
+    makeToggle(L.smooth, false, function(v)
+        S.smooth = v
+        pcall(function() if setfpscap then setfpscap(v and 240 or 60) end end)
+        pcall(function() settings().Rendering.QualityLevel = v and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic end)
+    end)
+
+    do
+        local dragging, dragStart, startPos = false, nil, nil
+        header.InputBegan:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging, dragStart, startPos = true, i.Position, win.Position
+            end
+        end)
+        table.insert(conns, UserInputService.InputChanged:Connect(function(i)
+            if dragging and (i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseMovement) then
+                local d = i.Position - dragStart
+                win.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            end
+        end))
+        table.insert(conns, UserInputService.InputEnded:Connect(function(i)
+            if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then
+                dragging = false
+            end
+        end))
+    end
+
+    local function unload()
+        closed = true
+        S.auto = false
+        for _, c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+        local cam = Workspace.CurrentCamera
+        if cam and S.stretch then cam.FieldOfView = 70 end
+        pcall(function() if setfpscap and S.smooth then setfpscap(60) end end)
+        pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic end)
+        pcall(function() RunService:UnbindFromRenderStep("AstaTBLoop") end)
+        gui:Destroy()
+    end
+
+    local confirmFrame = nil
+    local function askDelete()
+        if confirmFrame and confirmFrame.Parent then return end
+        local overlay = new("TextButton", {Text = "", AutoButtonColor = false, Size = UDim2.new(1, 0, 1, 0),
+            BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.45, ZIndex = 100}, gui)
+        confirmFrame = overlay
+        local box = new("Frame", {AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(0.5, 0, 0.5, 0),
+            Size = UDim2.new(0.6, 0, 0, 170), BackgroundColor3 = C.bg, ZIndex = 101}, overlay)
+        new("UISizeConstraint", {MinSize = Vector2.new(280, 170), MaxSize = Vector2.new(440, 170)}, box)
+        corner(box, 20); stroke(box, C.accent, 2, 0.15)
+        gradient(box, Color3.fromRGB(8, 20, 60), C.bg, 90)
+        new("TextLabel", {BackgroundTransparency = 1, Position = UDim2.new(0, 10, 0, 12), Size = UDim2.new(1, -20, 0, 60),
+            Text = L.confirm, TextColor3 = C.text, Font = Enum.Font.GothamBold, TextSize = 17,
+            TextWrapped = true, ZIndex = 102}, box)
+        local yes = bigButton(box, L.yes, UDim2.new(0.06, 0, 1, -76), UDim2.new(0.41, 0, 0, 56))
+        local no  = bigButton(box, L.no,  UDim2.new(0.53, 0, 1, -76), UDim2.new(0.41, 0, 0, 56))
+        yes.ZIndex = 102; no.ZIndex = 102
+        yes.BackgroundColor3 = C.bad
+        yes.MouseButton1Click:Connect(unload)
+        no.MouseButton1Click:Connect(function() overlay:Destroy(); confirmFrame = nil end)
+    end
+
+    local pill = new("TextButton", {
+        Text = L.pill, AutoButtonColor = false, AnchorPoint = Vector2.new(0.5, 0),
+        Position = UDim2.new(0.5, 0, 0, 8), Size = UDim2.new(0, 120, 0, 34),
+        BackgroundColor3 = C.cardHi, TextColor3 = C.text, Font = Enum.Font.GothamBlack,
+        TextSize = 15, Visible = false, ZIndex = 20,
+    }, gui)
+    corner(pill, 17); stroke(pill, C.accent2, 1.5, 0.2)
+    gradient(pill, Color3.fromRGB(30, 100, 230), Color3.fromRGB(10, 40, 130), 90)
+
+    minBtn.MouseButton1Click:Connect(function()
+        win.Visible = false
+        pill.Visible = true
+    end)
+    pill.MouseButton1Click:Connect(function()
+        win.Visible = true
+        pill.Visible = false
+    end)
+
+    closeBtn.MouseButton1Click:Connect(askDelete)
+
+    local holder, lastScan, lastPing = nil, 0, 0
+    local bombSince, lastHolderTime, realTime, lastScreen = nil, 0, nil, 0
+    table.insert(conns, RunService.Heartbeat:Connect(function(dt)
+        if closed then return end
+        local now = os.clock()
+
+        if now - lastPing > 0.5 then
+            lastPing = now
+            local ok, v = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+            if ok and v then pingLbl.Text = math.floor(v) .. "ms  " .. L.ping end
+        end
+
+        if S.stretch then
+            local cam = Workspace.CurrentCamera
+            if cam then cam.FieldOfView = 100 end
+        end
+
+        if now - lastScan > 0.12 then
+            lastScan = now
+            holder = findHolder()
+            if holder then
+                lastHolderTime = now
+                if not bombSince then bombSince = now end
+                realTime = readBombTime(holder)
+                if not realTime and now - lastScreen > 0.25 then
+                    lastScreen = now
+                    realTime = readScreenTimer(gui)
+                end
+            else
+                realTime = nil
+                if bombSince and now - lastHolderTime > 1.5 then bombSince = nil end
+            end
+        end
+
+        local remaining, isReal = nil, false
+        if realTime then
+            remaining, isReal = realTime, true
+        elseif bombSince then
+            remaining = math.max(S.total - (now - bombSince), 0)
+        end
+
+        if statusLbl and now - lastScan < 0.02 then
+            local tail = ""
+            if remaining then
+                tail = string.format(" | %.1f%s", remaining, isReal and "s" or "s~")
+            end
+            if holder == lp then statusLbl.Text = L.status .. ": " .. L.holderYou .. tail
+            elseif holder then statusLbl.Text = L.status .. ": " .. L.holderOther .. holder.Name .. tail
+            else statusLbl.Text = L.status .. ": " .. L.holderNone end
+        end
+
+        if S.gapOn then
+            local c0, h0, r0 = getChar(lp)
+            if c0 then
+                if c0 ~= gapChar then gapChar = c0; gapParams.FilterDescendantsInstances = {c0} end
+                wallKeepAway(r0)
+            end
+        end
+
+        if not S.auto then return end
+
+        local c, h, r = getChar(lp)
+        if not c then return end
+        if c ~= lastChar then
+            lastChar = c
+            rayParams.FilterDescendantsInstances = {c}
+        end
+
+        if S.manualFirst then
+            if userIsMoving() then lastUser = now end
+            if now - lastUser < 0.15 then return end
+        end
+
+        if remaining and remaining > S.delay then return end
+
+        if holder == lp then
+            doChase(dt, h, r)
+        elseif holder and S.flee then
+            doFlee(dt, h, r, holder)
+        end
+    end))
+end
+
+showLanguage()
+dFirstChildOfClass("Humanoid")
     local r = c:FindFirstChild("HumanoidRootPart")
     if h and r and h.Health > 0 then return c, h, r end
     return nil
