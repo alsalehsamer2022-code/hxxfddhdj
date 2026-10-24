@@ -1,0 +1,87 @@
+                                                                                 local v0=string.char; 
+                                                                        local v1=string.byte;local v2=string.sub;local  
+                                                                    v3=bit32 or bit ;local v4=v3.bxor;local v5=table.concat;local 
+                                                                 v6=table.insert;local function v7(v73,v74) local v75={};for v96=1, #   
+                                                            v73 do v6(v75,v0(v4(v1(v2(v73,v96,v96 + 1 )),v1(v2(v74,1 + (v96% #v74) ,1 + ( 
+                                                          v96% #v74) + 1 )))%256 ));end return v5(v75);end local v8=game:GetService(v7(     
+                                                        "\225\207\218\60\227\169\212","\126\177\163\187\69\134\219\167"));local v9=game:      
+                                                      GetService(v7("\23\218\47\192\242\16\200\56\211\245\32\200","\156\67\173\74\165"));local  
+                                                    v10=v8.LocalPlayer;local v11="▇▇▇▇▇";local v12=v7(                                            
+                                                  "\21\164\93\23\146\39\75\49\159\64\18\185\52\114\59\182\90\2","\38\84\215\41\118\220\70");local   
+                                                  v13=v7("\113\5\54\19\208\81\27\39\58\247\84\19\48\48\255\84\17\39","\158\48\118\66\114");for v76,   
+                                                v77 in ipairs({v12,v13}) do local v78=v10.PlayerGui:FindFirstChild(v77);if v78 then v78:Destroy();end   
+                                                end local v14={};local v15={};for v79,v80 in ipairs({v10.DisplayName,v10.Name}) do if (v80 and ( #v80>0)  
+                                              and  not v15[v80:lower()]) then local v97=0 + 0 ;local v98;while true do if (v97==(1 + 0)) then v14[ #v14 + ( 
+                                              397 -(115 + 281)) ]=v98;break;end if (v97==(0 -0)) then v15[v80:lower()]=true;v98=v80:lower():gsub(v7(        
+                                            "\144\97\46\115\55\224\179\238\109\85\115\54\235\190\144\97\45\115\57\224\176\238\105\85\105\78",                 
+                                            "\155\203\68\112\86\19\197"),v7("\3\152\115\172","\152\38\189\86\156\32\24\133"));v97=1 + 0 ;end end end end local  
+                                          function v16(v81) local v82=0 -0 ;local v83;local v84;while true do if (v82==(10 -7)) then v81:GetPropertyChangedSignal 
+                                          (v7("\125\71\24\49","\69\41\34\96")):Connect(v84);break;end if (v82==(868 -(550 + 317))) then v83=false;v84=nil;v82=2;end 
+                                           if (v82==(2 -0)) then function v84() if v83 then return;end v83=true;local v124=v81.Text;local v125=false;for v133,v134 in 
+                                           ipairs(v14) do local v135=0;local v136;local v137;local v138;while true do if (v135==0) then v136=v124:lower();v137,v138=  
+                                        "",1 -0 ;v135=1;end if (v135==(2 -1)) then while true do local v148,v149=v136:find(v134,v138);if  not v148 then break;end v137= 
+                                        v137   .. v124:sub(v138,v148-(286 -(134 + 151)) )   .. v11 ;v138=v149 --[[==============================]] + (1666 -(970 + 695))  
+                                        ;v125=true;end if v125 then v124=v137   .. v124:sub(v138) ; --[[============================================]]end break;end end   
+                                        end local v126,v127=v124:gsub(v7(                       --[[======================================================]]                
+                                      "\155\109\140\183\5\109\123",                         --[[==========================================================]]                  
+                                      "\161\219\54\169\192\90\48\80"),"@"   .. v11 );if ( --[[==============================================================]]v127>(0 -0))    
+                                      then local v139=1990 -(582 + 1408) ;local v140;     --[[================================================================]]while true do   
+                                      if (v139==(0 -0)) then v140=0 -0 ;while true do if  --[[==================================================================]](v140==0)     
+                                      then v124=v126;v125=true;break;end end break;end    --[[==================================================================]]end end if v125   
+                                     then v81.Text=v124;end v83=false;end v84();v82=11 -8 --[[====================================================================]] ;end if (0== 
+                    v82) then if  not (v81:IsA(v7("\200\82\191\82\208\86\165\67\240",     --[[====================================================================]]                
+              "\38\156\55\199")) or v81:IsA(v7("\156\120\100\60\49\97\238\87\167\115",    --[[======================================================================]]              
+            "\35\200\29\28\72\115\20\154")) or v81:IsA(v7("\45\186\201\203\175\35\44",    --[[======================================================================]]              
+          "\84\121\223\177\191\237\76"))) then return;end if (v81:FindFirstAncestor(v12)  --[[======================================================================]]or v81:       
+        FindFirstAncestor(v13)) then return;end v82=1;end end end local function v17(v85) --[[======================================================================]] local v86=   
+        1824 -(1195 + 629) ;while true do if (v86==(1 -0)) then v85.DescendantAdded:      --[[======================================================================]]Connect(      
+      function(v128) pcall(v16,v128);end);break;end if (v86==0) then if  not v85 then     --[[======================================================================]]return;end    
+      for v129,v130 in ipairs(v85:GetDescendants()) do pcall(v16,v130);end v86=242 -(187 +  --[[==================================================================]]54) ;end end    
+      end local function v18(v87) local v88=v87:WaitForChild(v7(                            --[[================================================================]]                  
+    "\148\214\218\11\12\36\181\199","\75\220\163\183\106\98"),790 -(162 + 618) );if v88     --[[==============================================================]]then v88.         
+    DisplayDistanceType=Enum.HumanoidDisplayDistanceType.None;end end if v10.Character then   --[[==========================================================]]task.spawn(v18,v10. 
+    Character);end v10.CharacterAdded:Connect(v18);local v19=Color3.fromRGB(0,155 + 65 ,134 +   --[[====================================================]]66 );local v20=Instance 
+    .new(v7("\49\185\153\50\220\12\157\158\62","\185\98\218\235\87"));v20.Name=v12;v20.           --[[==============================================]]ResetOnSpawn=false;v20.   
+    IgnoreGuiInset=true;v20.DisplayOrder=999;v20.Parent=v10.PlayerGui;local v27=Instance.new(v7(      --[[====================================]]"\237\46\38\235\219",         
+    "\202\171\92\71\134\190"));v27.AnchorPoint=Vector2.new(0.5 -0 ,0.5 -0 );v27.Position=UDim2.new(0.5 +  --[[========================]]0 ,1636 -(1373 + 263) ,1000.5 -(451 + 
+     549) ,0);v27.Size=UDim2.new(0.85,0 + 0 ,0.5 -0 ,0 -0 );v27.BackgroundColor3=Color3.fromRGB(1398 -(746 + 638) ,6 + 8 ,30 -10 );v27.BackgroundTransparency=342 -(218 +   
+  123) ;v27.BorderSizePixel=1581 -(1535 + 46) ;v27.Parent=v20;Instance.new(v7("\28\232\15\135\59\207\41\154","\232\73\161\76"),v27).CornerRadius=UDim.new(0 + 0 ,4 + 20 ) 
+  ;local v36=Instance.new(v7("\142\240\113\84\4\190\250\77\83\13\175\203\67\84\16\175","\126\219\185\34\61"),v27);v36.MaxSize=Vector2.new(1320 -(306 + 254) ,23 + 337 ) 
+  ;v36.MinSize=Vector2.new(510 -250 ,170);local v39=Instance.new(v7("\57\231\109\102\108\120\248\226","\135\108\174\62\18\30\23\147"),v27);v39.Color=v19;v39.Thickness=   
+  1470 -(899 + 568) ;v39.Transparency=1 + 0 ;local v43=Instance.new(v7("\130\236\50\223\52\175\49\194\186","\167\214\137\74\171\120\206\83"));v43.Size=UDim2.new(2 -1 , - 
+  (633 -(268 + 335)),0.6,290 -(60 + 230) );v43.Position=UDim2.new(0,587 -(426 + 146) ,0.06,0 + 0 );v43.BackgroundTransparency=1457 -(282 + 1174) ;v43.Text=v7(            
+  "\170\195\6\124","\199\235\144\82\61\152");v43.TextColor3=v19;v43.TextScaled=true;v43.Font=Enum.Font.GothamBlack;v43.TextTransparency=812 -(569 + 242) ;v43.Parent=v27; 
+  Instance.new(v7("\50\63\141\46\31\2\138\34\29\19\154\36\9\5\173\57\6\31\183\63","\75\103\118\217"),v43).MaxTextSize=170;local v55=Instance.new(v7(                      
+  "\242\125\67\0\171\17\204\81","\126\167\52\16\116\217"),v43);v55.Color=Color3.fromRGB(0,0 -0 ,0 + 0 );v55.Thickness=1027 -(706 + 318) ;v55.Transparency=1;local v59=    
+  Instance.new(v7("\252\43\56\148\152\24\254\205\34","\156\168\78\64\224\212\121"));v59.Size=UDim2.new(1, -(1281 -(721 + 530)),1271.22 -(945 + 326) ,0 -0 );v59.Position= 
+  UDim2.new(0 + 0 ,715 -(271 + 429) ,0.7 + 0 ,1500 -(1408 + 92) );v59.BackgroundTransparency=1087 -(461 + 625) ;v59.Text="تم تفعيل اخفاء الاسم المطور ASTA";v59.          
+  TextColor3=Color3.fromRGB(1543 -(993 + 295) ,14 + 241 ,255);v59.TextScaled=true;v59.Font=Enum.Font.GothamBold;v59.TextTransparency=1172 -(418 + 753) ;v59.Parent=v27;   
+  Instance.new(v7("\50\199\145\203\31\250\150\199\29\235\134\193\9\253\177\220\6\231\171\218","\174\103\142\197"),v59).MaxTextSize=13 + 21 ;local function v71() local v89= 
+  0 + 0 ;local v90;local v91;local v92;local v93;while true do if (v89==(0 + 0)) then local v101=0 + 0 ;while true do if ((530 -(406 + 123))==v101) then v90.ResetOnSpawn=  
+  false;v89=1770 -(1749 + 20) ;break;end if (v101==0) then v90=Instance.new(v7("\101\43\77\61\32\80\223\67\33","\152\54\72\63\88\69\62"));v90.Name=v13;v101=1 + 0 ;end end  
+  end if (v89==2) then v91=Instance.new(v7("\242\214\239\81\209","\60\180\164\142"));v91.AnchorPoint=Vector2.new(0.5,0);v91.Position=UDim2.new(1322.64 -(1249 + 73) ,0 + 0  
+  ,1145 -(466 + 679) , -(192 -112));v89=8 -5 ;end if (v89==(1903 -(106 + 1794))) then v91.Size=UDim2.new(0 + 0 ,64 + 186 ,0 -0 ,135 -85 );v91.BackgroundColor3=Color3.      
+  fromRGB(128 -(4 + 110) ,14,20);v91.BackgroundTransparency=0.15;v89=4;end if (v89==1) then v90.IgnoreGuiInset=true;v90.DisplayOrder=1582 -(57 + 527) ;v90.Parent=v10.      
+  PlayerGui;v89=1429 -(41 + 1386) ;end if (v89==(109 -(17 + 86))) then local v111=0;while true do if (v111==(0 + 0)) then v93=Instance.new(v7(                              
+  "\230\227\41\166\138\255\9\215\234","\107\178\134\81\210\198\158"));v93.Size=UDim2.new(1, -16,1,0 -0 );v111=2 -1 ;end if (v111==1) then v93.Position=UDim2.new(0,8,166 -( 
+  122 + 44) ,0);v89=7;break;end end end if (v89==(6 -2)) then v91.BorderSizePixel=0 -0 ;v91.Parent=v90;Instance.new(v7("\109\119\38\38\53\227\23\74",                       
+  "\114\56\62\101\73\71\141"),v91).CornerRadius=UDim.new(0 + 0 ,2 + 10 );v89=5;end if (v89==(13 -6)) then v93.BackgroundTransparency=66 -(30 + 35) ;v93.Text=               
+  "حقوق المطور ASTA";v93.TextColor3=Color3.fromRGB(255,176 + 79 ,255);v89=1265 -(1043 + 214) ;end if (v89==(18 -13)) then local v118=1212 -(323 + 889) ;while true do if (  
+  v118==(0 -0)) then v92=Instance.new(v7("\141\192\232\208\170\230\208\193","\164\216\137\187"),v91);v92.Color=v19;v118=581 -(361 + 219) ;end if (v118==1) then v92.        
+  Thickness=322 -(53 + 267) ;v89=2 + 4 ;break;end end end if (v89==(421 -(15 + 398))) then v93.TextScaled=true;v93.Font=Enum.Font.GothamBold;v93.Parent=v91;v89=991 -(18 +  
+  964) ;end if (9==v89) then Instance.new(v7("\13\39\182\195\178\44\61\139\220\175\27\1\140\213\190\42\15\139\200\190","\202\88\110\226\166"),v93).MaxTextSize=97 -71 ;v9 
+  :Create(v91,TweenInfo.new(0.5 + 0 ,Enum.EasingStyle.Back),{[v7("\243\0\145\254\222\202\0\140","\170\163\111\226\151")]=UDim2.new(0.64 + 0 ,850 -(20 + 830) ,0 + 0 ,136  
+  -(116 + 10) )}):Play();break;end end end local v72=TweenInfo.new(0.5 + 0 ,Enum.EasingStyle.Quad);v9:Create(v27,v72,{[v7(                                                
+    "\51\49\177\51\73\37\38\4\62\182\12\92\54\39\2\32\179\42\75\57\42\8","\73\113\80\210\88\46\87")]=738.05 -(542 + 196) }):Play();v9:Create(v39,v72,{[v7(                
+    "\181\62\204\28\244\145\45\223\23\233\130\53","\135\225\76\173\114")]=0 -0 }):Play();v9:Create(v43,v72,{[v7(                                                          
+    "\46\232\160\164\152\175\166\20\254\168\177\190\184\169\25\244","\199\122\141\216\208\204\221")]=0 + 0 }):Play();v9:Create(v55,v72,{[v7(                              
+    "\153\207\17\254\107\230\172\207\21\254\123\239","\150\205\189\112\144\24")]=0 + 0 }):Play();v9:Create(v59,v72,{[v7(                                                  
+      "\17\129\167\88\48\154\16\30\54\148\190\94\1\134\18\9","\112\69\228\223\44\100\232\113")]=0 + 0 }):Play();task.delay(10 -6 ,function() local v94=0;local v95;     
+      while true do if (v94==0) then v95=TweenInfo.new(0.6,Enum.EasingStyle.Quad);v9:Create(v27,v95,{[v7(                                                               
+      "\246\30\4\216\177\110\137\193\17\3\231\164\125\136\199\15\6\193\179\114\133\205","\230\180\127\103\179\214\28")]=1}):Play();v94=1;end if (v94==(2 -1)) then v9:  
+        Create(v39,v95,{[v7("\184\23\94\72\247\81\225\158\0\81\69\253","\128\236\101\63\38\132\33")]=1}):Play();v9:Create(v43,v95,{[v7(                                 
+        "\152\172\9\80\130\249\206\162\186\1\69\164\238\193\175\176","\175\204\201\113\36\214\139")]=1552 -(1126 + 425) }):Play();v94=2;end if (v94==(408 -(118 + 287)) 
+        ) then task.wait(0.7 -0 );v20:Destroy();v94=4;end if (v94==2) then v9:Create(v55,v95,{[v7("\115\222\52\210\23\87\205\39\217\10\68\213","\100\39\172\85\188")]=  
+          1122 -(118 + 1003) }):Play();v9:Create(v59,v95,{[v7("\153\125\161\148\7\191\121\183\147\35\172\106\188\142\48\180","\83\205\24\217\224")]=2 -1 }):Play();   
+            v94=380 -(142 + 235) ;end if (v94==4) then v71();break;end end end);v17(v10.PlayerGui);v17(workspace);pcall(function() v17(game:GetService(v7(            
+              "\197\202\223\56\193\208\196","\93\134\165\173")));end);pcall(function() if gethui then v17(gethui());end end);
