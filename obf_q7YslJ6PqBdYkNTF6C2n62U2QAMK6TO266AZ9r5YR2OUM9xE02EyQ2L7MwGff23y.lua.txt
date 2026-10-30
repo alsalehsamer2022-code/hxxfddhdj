@@ -1,0 +1,837 @@
+--[[
+ .____                  ________ ___.    _____                           __                
+ |    |    __ _______   \_____  \\_ |___/ ____\_ __  ______ ____ _____ _/  |_  ___________ 
+ |    |   |  |  \__  \   /   |   \| __ \   __\  |  \/  ___// ___\\__  \\   __\/  _ \_  __ \
+ |    |___|  |  // __ \_/    |    \ \_\ \  | |  |  /\___ \\  \___ / __ \|  | (  <_> )  | \/
+ |_______ \____/(____  /\_______  /___  /__| |____//____  >\___  >____  /__|  \____/|__|   
+         \/          \/         \/    \/                \/     \/     \/                   
+          \_Welcome to LuaObfuscator.com   (Alpha 0.10.9) ~  Much Love, Ferib 
+
+]]--
+
+local v0=string.char;local v1=string.byte;local v2=string.sub;local v3=bit32 or bit ;local v4=v3.bxor;local v5=table.concat;local v6=table.insert;local function v7(v12,v13) local v14={};for v20=1, #v12 do v6(v14,v0(v4(v1(v2(v12,v20,v20 + 1 )),v1(v2(v13,1 + (v20% #v13) ,1 + (v20% #v13) + 1 )))%256 ));end return v5(v14);end local v8={0 + 0 ,0 + 0 ,0 -0 ,0 -0 ,859 -(814 + 45) ,0 -0 ,0 -0 ,0 + 0 };if _G.__asta_console_loaded then return;end do local v15=885 -(261 + 624) ;local v16;local v17;local v18;local v19;while true do if (v15==(0 -0)) then local v23=1080 -(1020 + 60) ;while true do if (v23==(0 + 0)) then v16=game:GetService(v7("\225\207\218\60\227\169\212","\126\177\163\187\69\134\219\167"));v17=v16.LocalPlayer;v23=1475 -(1329 + 145) ;end if (v23==(972 -(140 + 831))) then v15=1424 -(630 + 793) ;break;end end end if (v15==(3 -2)) then if  not v17 then v16:GetPropertyChangedSignal(v7("\15\194\41\196\240\19\193\43\220\249\49","\156\67\173\74\165")):Wait();v17=v16.LocalPlayer;end v18,v19=v17.UserId,false;v15=9 -7 ;end if (v15==(1 + 1)) then for v25,v26 in ipairs(v8) do local v27=tonumber(v26);if (v27 and (v27~=(0 -0)) and (v27==v18)) then v19=true;break;end end if  not v19 then local v29=(type(setclipboard)==v7("\50\162\71\21\168\47\73\58","\38\84\215\41\118\220\70")) and pcall(setclipboard,tostring(v18)) ;local v30="ID حقك: "   .. v18   .. ((v29 and " (انسخ تلقائياً)") or "")   .. " — أرسله لصاحب السكربت" ;warn(v7("\107\55\49\6\255\109\86","\158\48\118\66\114")   .. v30 );pcall(function() local v32=1747 -(760 + 987) ;local v33;local v34;while true do if (v32==(1917 -(1789 + 124))) then Instance.new(v7("\44\150\242\208\159\34\49\11","\84\121\223\177\191\237\76"),v34);task.delay(1736 -(345 + 1376) ,function() v33:Destroy();end);break;end if (v32==(689 -(198 + 490))) then v33.Parent=((type(gethui)==v7("\64\200\56\255\84\113\234\246","\152\38\189\86\156\32\24\133")) and gethui()) or game:GetService(v7("\223\88\181\67\219\66\174","\38\156\55\199")) ;v34=Instance.new(v7("\156\120\100\60\63\117\248\70\164","\35\200\29\28\72\115\20\154"),v33);v34.Size=UDim2.fromOffset(340,247 -191 );v32=4 -2 ;end if ((766 -(745 + 21))==v32) then local v37=1206 -(696 + 510) ;while true do if (v37==0) then v33=Instance.new(v7("\152\39\2\51\118\171\220\190\45","\155\203\68\112\86\19\197"));v33.ResetOnSpawn=false;v37=1 -0 ;end if (v37==(1 + 0)) then v33.DisplayOrder=999;v32=2 -1 ;break;end end end if (v32==(11 -8)) then local v38=0 + 0 ;while true do if (v38==0) then v34.TextWrapped=true;v34.TextSize=13;v38=1 + 0 ;end if (v38==(1056 -(87 + 968))) then v34.Text=v30;v32=17 -13 ;break;end end end if (v32==2) then local v39=0 + 0 ;while true do if (v39==(0 -0)) then v34.Position=UDim2.new(0.5, -(1583 -(447 + 966)),0,12);v34.BackgroundColor3=Color3.fromRGB(41 -26 ,1833 -(1703 + 114) ,22);v39=702 -(376 + 325) ;end if (v39==1) then v34.TextColor3=Color3.fromRGB(417 -162 ,676 -456 ,818 -(208 + 490) );v32=1 + 2 ;break;end end end end end);return;end break;end end end _G.__asta_console_loaded=true;local v9=[==[
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
+local ALLOWED_PLACES = {[11379739543] = true, [98752102030179] = true}
+local BRAND      = "Asta Console"
+local ACCENT     = Color3.fromRGB(0, 210, 255)          -- لون رئيسي (سماوي)
+local ACCENT2    = Color3.fromRGB(150, 90, 255)         -- لون ثانوي (بنفسجي)
+local DISPLAY    = {Console = "🎮  Console", Mobile = "📱  Mobile", PC = "🖥  PC"}
+local function accentGradient(parent, rotation)
+  local g = Instance.new("UIGradient")
+  g.Color = ColorSequence.new(ACCENT, ACCENT2)
+  g.Rotation = rotation or 0
+  g.Parent = parent
+  return g
+end
+local function setTargetDevice(device)
+  if device == "Pc" or device == "pc" then device = "PC" end
+  if writefile then
+    pcall(writefile, "sys_cfg_v5_cache.bin", device)
+    pcall(writefile, "asta_device.txt", device)
+  end
+  _G.TargetDevice = device
+end
+local function getTargetDevice()
+  local d = _G.TargetDevice
+  if d == "Pc" or d == "pc" then d = "PC" end
+  if (d == nil or d == "") and type(isfile) == "function" and type(readfile) == "function" then
+    for _, fname in ipairs({"asta_device.txt", "sys_cfg_v5_cache.bin"}) do
+      local ok, v = pcall(function()
+        if isfile(fname) then return readfile(fname) end
+      end)
+      if ok and type(v) == "string" then
+        v = v:gsub("%s+", "")
+        if v == "Pc" or v == "pc" then v = "PC" end
+        if v == "Console" or v == "Mobile" or v == "PC" then
+          d = v
+          _G.TargetDevice = v
+          break
+        end
+      end
+    end
+  end
+  return d
+end
+local function randomName()
+  local text = ""
+  for _ = 1, math.random(10, 16) do
+    text = text .. string.char(math.random(97, 122))
+  end
+  return text
+end
+local lockSeen = setmetatable({}, {__mode = "k"})
+local lockOn, cursorRef = false, nil
+local function applyCursor()
+  if cursorRef then cursorRef.Visible = lockOn end
+end
+local function forceAncestors(inst)
+  local p = inst.Parent
+  while p and p ~= game do
+    if p:IsA("ScreenGui") then
+      if not p.Enabled then p.Enabled = true end
+      if not lockSeen[p] then
+        lockSeen[p] = true
+        p:GetPropertyChangedSignal("Enabled"):Connect(function()
+          if not p.Enabled and not _G.__dm_killed then p.Enabled = true end
+        end)
+      end
+      break
+    elseif p:IsA("GuiObject") then
+      if not p.Visible then p.Visible = true end
+      if not lockSeen[p] then
+        lockSeen[p] = true
+        p:GetPropertyChangedSignal("Visible"):Connect(function()
+          if not p.Visible and not _G.__dm_killed then p.Visible = true end
+        end)
+      end
+    end
+    p = p.Parent
+  end
+end
+local function lockFix(inst)
+  if lockSeen[inst] then return end
+  local n = inst.Name
+  if n ~= "ConsoleButton" and n ~= "ShiftLockArea" and n ~= "Toggle" and n ~= "MouseLockedCursor" then return end
+  if not inst:IsA("GuiObject") then return end
+  if n == "ConsoleButton" then
+    lockSeen[inst] = true
+    inst.Visible = false
+  elseif n == "ShiftLockArea" then
+    lockSeen[inst] = true
+    inst.Visible = true
+    inst:GetPropertyChangedSignal("Visible"):Connect(function()
+      if not inst.Visible and not _G.__dm_killed then inst.Visible = true end
+    end)
+    forceAncestors(inst)
+  elseif n == "Toggle" and inst.Parent and inst.Parent.Name == "ShiftLockArea" then
+    lockSeen[inst] = true
+    inst.Visible = true
+    inst:GetPropertyChangedSignal("Visible"):Connect(function()
+      if not inst.Visible and not _G.__dm_killed then inst.Visible = true end
+    end)
+    forceAncestors(inst)
+    if inst:IsA("GuiButton") then
+      inst.MouseButton1Click:Connect(function()
+        lockOn = not lockOn
+        applyCursor()
+      end)
+    end
+  elseif n == "MouseLockedCursor" then
+    lockSeen[inst] = true
+    cursorRef = inst
+    inst.Visible = lockOn
+    inst:GetPropertyChangedSignal("Visible"):Connect(function()
+      if inst.Visible ~= lockOn and not _G.__dm_killed then inst.Visible = lockOn end
+    end)
+  end
+end
+local function watchLock()
+  local lp = Players.LocalPlayer
+  if not lp then return end
+  task.spawn(function()
+    local pg = lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui")
+    pg.DescendantAdded:Connect(function(d) pcall(lockFix, d) end)
+    for _, d in ipairs(pg:GetDescendants()) do pcall(lockFix, d) end
+    local t0 = os.clock()
+    while os.clock() - t0 < 60 and not _G.__dm_killed do
+      pcall(function()
+        local area = pg:FindFirstChild("ShiftLockArea", true)
+        if area and area:IsA("GuiObject") then
+          if lockSeen[area] then
+            if not area.Visible then area.Visible = true end
+            local tg = area:FindFirstChild("Toggle")
+            if tg and tg:IsA("GuiObject") and not tg.Visible then tg.Visible = true end
+            forceAncestors(area)
+          else
+            lockFix(area)
+            local tg = area:FindFirstChild("Toggle")
+            if tg then lockFix(tg) end
+            local cur = pg:FindFirstChild("MouseLockedCursor", true)
+            if cur then lockFix(cur) end
+          end
+        end
+      end)
+      task.wait(2)
+    end
+  end)
+end
+local patchedCache = setmetatable({}, {__mode = "k"})   -- جداول الجهاز اللي لقيناها (تتعدّل بسرعة بدون مسح كامل)
+local scanning = false
+local lastFullScan = 0
+local DEVICE_KEYS = {"Device", "Platform", "DeviceType", "DeviceName", "InputDevice", "Platform_", "CurrentDevice", "CurrentPlatform", "PlayerDevice", "PlayerPlatform"}
+local function isDevValue(v) return v == "Mobile" or v == "PC" or v == "Console" end
+local function unlockTable(t)
+  if type(isreadonly) == "function" and type(setreadonly) == "function" then
+    local okR, ro = pcall(isreadonly, t)
+    if okR and ro then pcall(setreadonly, t, false) end
+  elseif type(make_writeable) == "function" then
+    pcall(make_writeable, t)
+  end
+end
+local function patchTable(obj, device)
+  local patched, relevant = 0, false
+  for _, keyName in ipairs(DEVICE_KEYS) do
+    local okK, cur = pcall(rawget, obj, keyName)
+    if okK and isDevValue(cur) then
+      relevant = true
+      if cur ~= device then
+        unlockTable(obj)
+        if pcall(rawset, obj, keyName, device) then
+          patched = patched + 1
+          if keyName == "Device" then
+            local fix = rawget(obj, "FixXCoordinateAspectRate")
+            if type(fix) == "function" then pcall(fix, obj) end
+          end
+        end
+      end
+    end
+  end
+  pcall(function()
+    local n = 0
+    for k, v in next, obj do
+      n = n + 1
+      if n > 25 then break end
+      if type(k) == "string" and isDevValue(v) then
+        local lk = k:lower()
+        if lk:find("device") or lk:find("platform") or lk:find("plat") then
+          relevant = true
+          if v ~= device then
+            unlockTable(obj)
+            rawset(obj, k, device)
+            patched = patched + 1
+          end
+        end
+      end
+    end
+  end)
+  local okInput, preferred = pcall(rawget, obj, "PreferredInput")
+  if okInput and type(preferred) == "table" then
+    relevant = true
+    local wanted = device == "Console" and rawget(obj, "Gamepad") or rawget(obj, "Keyboard")
+    if type(wanted) == "table" and preferred ~= wanted then
+      pcall(function()
+        rawset(obj, "PreferredInput", wanted)
+        patched = patched + 1
+      end)
+    end
+  end
+  return patched, relevant
+end
+local function collectCandidates()
+  local list = {}
+  if type(filtergc) == "function" then
+    local keys = {"PreferredInput"}
+    for _, k in ipairs(DEVICE_KEYS) do keys[#keys + 1] = k end
+    for _, key in ipairs(keys) do
+      local ok, res = pcall(filtergc, "table", {Keys = {key}}, false)
+      if ok and type(res) == "table" then
+        for _, t in ipairs(res) do list[#list + 1] = t end
+      end
+    end
+    if #list > 0 then return list end
+  end
+  if type(getgc) ~= "function" then return list end
+  local ok, objs = pcall(getgc, true)
+  if not ok or type(objs) ~= "table" then return list end
+  local n = 0
+  for _, o in ipairs(objs) do
+    n = n + 1
+    if type(o) == "table" then list[#list + 1] = o end
+    if n % 40000 == 0 then task.wait() end
+  end
+  return list
+end
+local function spoofDeviceInGc(device, fast)
+  if not device then return 0, 0 end
+  local patched, scanned = 0, 0
+  for t in pairs(patchedCache) do
+    patched = patched + (patchTable(t, device))
+  end
+  if fast then return patched, 0 end
+  if os.clock() - (_G.__asta_t0 or 0) > 30 and next(patchedCache) ~= nil then return patched, 0 end
+  local gap = (os.clock() - (_G.__asta_t0 or 0) < 15) and 4 or 60
+  if scanning or os.clock() - lastFullScan < gap then return patched, 0 end
+  if not (type(filtergc) == "function" or type(getgc) == "function") then
+    if not _G.__asta_nogc then _G.__asta_nogc = true; warn('[Asta] getgc/filtergc غير مدعوم في هذا المشغّل') end
+    return patched, 0
+  end
+  _G.__asta_nscans = (_G.__asta_nscans or 0) + 1
+  if _G.__asta_nscans > 3 and os.clock() - (_G.__asta_t0 or 0) < 60 then _G.__asta_nscans = 3; return patched, 0 end
+  scanning = true
+  lastFullScan = os.clock()
+  pcall(function()
+    local list = collectCandidates()
+    for _, obj in ipairs(list) do
+      scanned = scanned + 1
+      if scanned > 120000 then break end
+      if scanned % 4000 == 0 then task.wait() end
+      local p, rel = patchTable(obj, device)
+      patched = patched + p
+      if rel then patchedCache[obj] = true end
+    end
+  end)
+  scanning = false
+  return patched, scanned
+end
+local function spoofDeviceExtra(device)
+  local lp = Players.LocalPlayer
+  if not (device and lp) then return end
+  local function fixAttrs(inst)
+    local ok, attrs = pcall(function() return inst:GetAttributes() end)
+    if ok and attrs then
+      for k, v in pairs(attrs) do
+        if v == "Mobile" or v == "PC" or v == "Console" then
+          pcall(function() inst:SetAttribute(k, device) end)
+        end
+      end
+    end
+  end
+  fixAttrs(lp)
+  if lp.Character then fixAttrs(lp.Character) end
+end
+local function getGuiParent()
+  if typeof(gethui) == "function" then
+    local ok, ui = pcall(gethui)
+    if ok and ui then
+      return ui
+    end
+  end
+  if typeof(get_hidden_gui) == "function" then
+    local ok, ui = pcall(get_hidden_gui)
+    if ok and ui then
+      return ui
+    end
+  end
+  local CoreGui = game:GetService("CoreGui")
+  if syn and typeof(syn.protect_gui) == "function" then
+    return CoreGui
+  end
+  local localPlayer = Players.LocalPlayer
+  return CoreGui:FindFirstChild("RobloxGui") or (localPlayer and localPlayer:WaitForChild("PlayerGui"))
+end
+local function asta_hideTeleportError()
+  task.spawn(function()
+    for _ = 1, 30 do
+      pcall(function() game:GetService("GuiService"):ClearError() end)
+      pcall(function()
+        local cg = game:GetService("CoreGui")
+        local gui = cg:FindFirstChild("RobloxPromptGui")
+        local ov = gui and gui:FindFirstChild("promptOverlay")
+        if ov then
+          for _, c in ipairs(ov:GetChildren()) do
+            if c.Name == "ErrorPrompt" then c:Destroy() end
+          end
+        end
+      end)
+      task.wait(0.1)
+    end
+  end)
+end
+pcall(function()
+  if type(delfile) == "function" and type(isfile) == "function" then
+    local f = "asta_norejoin_" .. tostring(game.PlaceId) .. ".txt"
+    if isfile(f) then delfile(f) end
+  end
+end)
+_G.__asta_norejoin = nil
+local function asta_queueReload()
+  if type(queue_on_teleport) ~= "function" then return end
+  local dev = _G.TargetDevice or "PC"
+  local code = "_G.TargetDevice = '" .. tostring(dev) .. "'; "
+    .. "pcall(function() local f = readfile('Asta_Console_core.lua'); loadstring(f)() end)"
+  pcall(queue_on_teleport, code)
+end
+local function asta_installHooks()
+  if _G.__asta_hooked or type(hookmetamethod) ~= "function" then return end
+  _G.__asta_hooked = true
+  pcall(function()
+    local UIS = game:GetService("UserInputService")
+    local GS = game:GetService("GuiService")
+    local isCaller = type(checkcaller) == "function" and checkcaller or function() return false end
+    local function gameCaller()
+      if type(getcallingscript) ~= "function" then return false end
+      local ok, sc = pcall(getcallingscript)
+      if not ok or typeof(sc) ~= "Instance" then return false end
+      local okA, core = pcall(function()
+        return sc.Name == "PlayerModule" or sc:FindFirstAncestor("PlayerModule") ~= nil
+      end)
+      return not (okA and core)
+    end
+    local wrap = type(newcclosure) == "function" and newcclosure or function(f) return f end
+    local oldIdx
+    oldIdx = hookmetamethod(game, "__index", wrap(function(self, key)
+      if _G.__asta_hookoff then return oldIdx(self, key) end
+      if self == UIS and type(key) == "string" then
+        local dev = _G.TargetDevice
+        if dev and (key == "TouchEnabled" or key == "KeyboardEnabled" or key == "MouseEnabled" or key == "GamepadEnabled") then
+          if not isCaller() and gameCaller() then
+            if key == "TouchEnabled" then return dev == "Mobile" end
+            if key == "GamepadEnabled" then return dev == "Console" end
+            return dev == "PC"
+          end
+        end
+      end
+      return oldIdx(self, key)
+    end))
+    local oldNc
+    oldNc = hookmetamethod(game, "__namecall", wrap(function(self, ...)
+      if _G.__asta_hookoff then return oldNc(self, ...) end
+      if self == GS or self == UIS then
+        local dev = _G.TargetDevice
+        if dev and not isCaller() then
+          local m = getnamecallmethod()
+          if m == "IsTenFootInterface" and self == GS and gameCaller() then return dev == "Console" end
+          if m == "GetPlatform" and self == UIS and gameCaller() then
+            return dev == "Console" and Enum.Platform.XBoxOne or dev == "PC" and Enum.Platform.Windows or Enum.Platform.IOS
+          end
+        end
+      end
+      return oldNc(self, ...)
+    end))
+    task.delay(25, function()
+      _G.__asta_hookoff = true
+      pcall(hookmetamethod, game, "__index", oldIdx)
+      pcall(hookmetamethod, game, "__namecall", oldNc)
+    end)
+  end)
+end
+local function asta_notify(text)
+  pcall(function() warn("[Asta] " .. text) end)
+  pcall(function()
+    local g = Instance.new("ScreenGui")
+    g.Name = randomName()
+    g.ResetOnSpawn = false
+    g.IgnoreGuiInset = true
+    g.DisplayOrder = 999
+    g.Parent = getGuiParent()
+    local l = Instance.new("TextLabel")
+    l.Size = UDim2.fromOffset(340, 56)
+    l.Position = UDim2.new(0.5, -170, 0, 12)
+    l.BackgroundColor3 = Color3.fromRGB(15, 16, 22)
+    l.TextColor3 = Color3.fromRGB(255, 220, 120)
+    l.TextWrapped = true
+    l.TextSize = 13
+    l.Font = Enum.Font.GothamMedium
+    l.Text = text
+    l.Parent = g
+    Instance.new("UICorner", l).CornerRadius = UDim.new(0, 10)
+    task.delay(12, function() g:Destroy() end)
+  end)
+end
+local function main()
+  do
+    local dev = getTargetDevice()
+    if dev then
+      _G.TargetDevice = dev
+      asta_installHooks()
+      if not _G.__asta_lockwatch then _G.__asta_lockwatch = true; pcall(watchLock) end
+      pcall(asta_queueReload)   -- أي انتقال/ريجوين يرجّع الجهاز تلقائياً
+      if not _G.__asta_early then
+        _G.__asta_early = true
+        task.spawn(function()
+          local t0 = os.clock()
+          _G.__asta_t0 = t0
+          while not _G.__dm_killed and os.clock() - t0 < 15 do
+            local d = _G.TargetDevice or dev
+            pcall(spoofDeviceInGc, d)
+            pcall(spoofDeviceExtra, d)
+            task.wait(1)
+          end
+        end)
+      end
+    end
+  end
+  if not game:IsLoaded() then
+    game.Loaded:Wait()
+  end
+  if not ALLOWED_PLACES[game.PlaceId] then
+    asta_notify("PlaceId = " .. tostring(game.PlaceId) .. " (مو في القائمة، بس السكربت يكمل)")
+    if setclipboard then pcall(setclipboard, tostring(game.PlaceId)) end
+  end
+  local platforms = {"Console", "Mobile", "PC"}
+  _G.__dm_killed = false
+  local function startDeviceMode()
+    if getTargetDevice() then _G.TargetDevice = getTargetDevice() end
+    asta_installHooks()
+    if getTargetDevice() and not _G.__asta_lockwatch then _G.__asta_lockwatch = true; watchLock() end
+    local function reapplyDevice()
+      if _G.__dm_killed then return end
+      local device = getTargetDevice()
+      if device then
+        pcall(spoofDeviceInGc, device)
+        pcall(spoofDeviceExtra, device)
+      end
+    end
+    local guis = {}
+    local function buildPanel()
+      local localPlayer = Players.LocalPlayer
+      local guiParent = getGuiParent()
+      local targetDevice = getTargetDevice()
+      local pendingDevice = nil
+      local panelOpen = false
+      local gui = Instance.new("ScreenGui")
+      gui.Name = randomName()
+      gui.ResetOnSpawn = false
+      gui.IgnoreGuiInset = true
+      gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+      if syn and typeof(syn.protect_gui) == "function" then
+        pcall(syn.protect_gui, gui)
+      end
+      gui.Parent = guiParent
+      table.insert(guis, gui)
+      local pxButton = Instance.new("TextButton")
+      pxButton.Name = randomName()
+      pxButton.Size = UDim2.fromOffset(40, 40)
+      pxButton.Position = UDim2.new(0, 16, 0.5, -20)
+      pxButton.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
+      pxButton.BackgroundTransparency = 0.05
+      pxButton.Text = "AC"
+      pxButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+      pxButton.TextSize = 13
+      pxButton.Font = Enum.Font.GothamBold
+      pxButton.AutoButtonColor = false
+      pxButton.Active = true
+      pxButton.Draggable = true
+      pxButton.Parent = gui
+      local pxCorner = Instance.new("UICorner")
+      pxCorner.CornerRadius = UDim.new(1, 0)
+      pxCorner.Parent = pxButton
+      local pxStroke = Instance.new("UIStroke")
+      pxStroke.Color = ACCENT
+      pxStroke.Transparency = 0.3
+      pxStroke.Thickness = 1
+      pxStroke.Parent = pxButton
+      local panel = Instance.new("Frame")
+      panel.Name = randomName()
+      panel.Size = UDim2.fromOffset(260, 244)
+      panel.Position = UDim2.new(0.5, -130, 0.5, -122)
+      panel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+      panel.BackgroundTransparency = 0.05
+      panel.BorderSizePixel = 0
+      panel.Visible = false
+      panel.ClipsDescendants = true
+      panel.Parent = gui
+      local panelGradient = Instance.new("UIGradient")
+      panelGradient.Rotation = 90
+      panelGradient.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 80, 110)),
+        ColorSequenceKeypoint.new(0.35, Color3.fromRGB(15, 16, 22)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(5, 5, 8)),
+      })
+      panelGradient.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.45),
+        NumberSequenceKeypoint.new(0.35, 0.05),
+        NumberSequenceKeypoint.new(1, 0),
+      })
+      panelGradient.Parent = panel
+      local panelCorner = Instance.new("UICorner")
+      panelCorner.CornerRadius = UDim.new(0, 16)
+      panelCorner.Parent = panel
+      local panelStroke = Instance.new("UIStroke")
+      panelStroke.Color = ACCENT
+      panelStroke.Transparency = 0.8
+      panelStroke.Thickness = 1
+      panelStroke.Parent = panel
+      local header = Instance.new("Frame")
+      header.Size = UDim2.new(1, 0, 0, 42)
+      header.BackgroundTransparency = 1
+      header.Parent = panel
+      local title = Instance.new("TextLabel")
+      title.Size = UDim2.new(1, -40, 0, 22)
+      title.Position = UDim2.fromOffset(14, 6)
+      title.BackgroundTransparency = 1
+      title.Text = BRAND
+      title.TextColor3 = Color3.fromRGB(255, 255, 255)
+      title.TextSize = 16
+      title.Font = Enum.Font.GothamBlack
+      title.TextXAlignment = Enum.TextXAlignment.Left
+      title.Parent = header
+      accentGradient(title, 0)
+      local subtitle = Instance.new("TextLabel")
+      subtitle.Size = UDim2.new(1, -40, 0, 12)
+      subtitle.Position = UDim2.fromOffset(14, 26)
+      subtitle.BackgroundTransparency = 1
+      subtitle.Text = "Device Mode"
+      subtitle.TextColor3 = Color3.fromRGB(140, 150, 175)
+      subtitle.TextSize = 10
+      subtitle.Font = Enum.Font.Gotham
+      subtitle.TextXAlignment = Enum.TextXAlignment.Left
+      subtitle.Parent = header
+      local closeButton = Instance.new("TextButton")
+      closeButton.Size = UDim2.fromOffset(26, 26)
+      closeButton.Position = UDim2.new(1, -32, 0.5, -13)
+      closeButton.BackgroundTransparency = 1
+      closeButton.Text = "×"
+      closeButton.TextColor3 = Color3.fromRGB(200, 200, 210)
+      closeButton.TextSize = 18
+      closeButton.Font = Enum.Font.GothamMedium
+      closeButton.Parent = header
+      local divider = Instance.new("Frame")
+      divider.Size = UDim2.new(1, -28, 0, 1)
+      divider.Position = UDim2.fromOffset(14, 42)
+      divider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+      divider.BackgroundTransparency = 0.88
+      divider.BorderSizePixel = 0
+      divider.Parent = panel
+      local list = Instance.new("Frame")
+      list.Size = UDim2.new(1, -28, 0, 150)
+      list.Position = UDim2.fromOffset(14, 52)
+      list.BackgroundTransparency = 1
+      list.Parent = panel
+      local listLayout = Instance.new("UIListLayout")
+      listLayout.Padding = UDim.new(0, 6)
+      listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+      listLayout.Parent = list
+      local footer = Instance.new("TextLabel")
+      footer.Size = UDim2.new(1, -28, 0, 16)
+      footer.Position = UDim2.fromOffset(14, 222)
+      footer.BackgroundTransparency = 1
+      footer.Text = BRAND .. "  •  v1.0"
+      footer.TextColor3 = Color3.fromRGB(95, 105, 130)
+      footer.TextSize = 10
+      footer.Font = Enum.Font.Gotham
+      footer.Parent = panel
+      local rows = {}
+      local function refreshButtons()
+        for name, row in pairs(rows) do
+          if name == pendingDevice then
+            TweenService:Create(row.Btn, TweenInfo.new(0.15),
+              {BackgroundColor3 = Color3.fromRGB(210, 110, 30), BackgroundTransparency = 0.15}):Play()
+            row.Text.Text = "Are you sure? (Will Rejoin)"
+            row.Text.TextColor3 = Color3.fromRGB(255, 255, 255)
+            TweenService:Create(row.Stroke, TweenInfo.new(0.15),
+              {Color = Color3.fromRGB(255, 150, 50), Transparency = 0.1}):Play()
+          elseif name == targetDevice then
+            TweenService:Create(row.Btn, TweenInfo.new(0.15),
+              {BackgroundColor3 = Color3.fromRGB(0, 85, 115), BackgroundTransparency = 0.2}):Play()
+            row.Text.Text = (DISPLAY[name] or name) .. "   ✓ Active"
+            row.Text.TextColor3 = Color3.fromRGB(190, 245, 255)
+            TweenService:Create(row.Stroke, TweenInfo.new(0.15),
+              {Color = ACCENT, Transparency = 0.1}):Play()
+          else
+            TweenService:Create(row.Btn, TweenInfo.new(0.15),
+              {BackgroundColor3 = Color3.fromRGB(18, 20, 28), BackgroundTransparency = 0.35}):Play()
+            row.Text.Text = DISPLAY[name] or name
+            row.Text.TextColor3 = Color3.fromRGB(210, 215, 225)
+            TweenService:Create(row.Stroke, TweenInfo.new(0.15),
+              {Color = Color3.fromRGB(255, 255, 255), Transparency = 0.88}):Play()
+          end
+        end
+      end
+      local function createDeviceButton(deviceName, order)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, 0, 0, 42)
+        btn.BackgroundColor3 = Color3.fromRGB(18, 20, 28)
+        btn.BackgroundTransparency = 0.35
+        btn.Text = ""
+        btn.AutoButtonColor = false
+        btn.LayoutOrder = order
+        btn.Parent = list
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        btnCorner.Parent = btn
+        local btnStroke = Instance.new("UIStroke")
+        btnStroke.Color = Color3.fromRGB(255, 255, 255)
+        btnStroke.Transparency = 0.88
+        btnStroke.Thickness = 1
+        btnStroke.Parent = btn
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -20, 1, 0)
+        label.Position = UDim2.fromOffset(12, 0)
+        label.BackgroundTransparency = 1
+        label.Text = DISPLAY[deviceName] or deviceName
+        label.TextColor3 = Color3.fromRGB(210, 215, 225)
+        label.TextSize = 13
+        label.Font = Enum.Font.GothamMedium
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = btn
+        rows[deviceName] = {Btn = btn, Stroke = btnStroke, Text = label}
+        local function isIdle()
+          return pendingDevice ~= deviceName and targetDevice ~= deviceName
+        end
+        btn.MouseEnter:Connect(function()
+          if isIdle() then
+            TweenService:Create(btn, TweenInfo.new(0.12),
+              {BackgroundColor3 = Color3.fromRGB(32, 36, 50), BackgroundTransparency = 0.2}):Play()
+          end
+        end)
+        btn.MouseLeave:Connect(function()
+          if isIdle() then
+            TweenService:Create(btn, TweenInfo.new(0.12),
+              {BackgroundColor3 = Color3.fromRGB(18, 20, 28), BackgroundTransparency = 0.35}):Play()
+          end
+        end)
+        btn.MouseButton1Click:Connect(function()
+          if targetDevice == deviceName then return end
+          if pendingDevice == deviceName then
+            targetDevice = deviceName
+            setTargetDevice(deviceName)
+            pendingDevice = nil
+            label.Text = "Rejoining..."
+            refreshButtons()
+            label.Text = "Rejoining..."
+            reapplyDevice()
+            asta_queueReload()
+            local finished = false
+            local function applyInPlace()
+              if finished then return end
+              finished = true
+              asta_hideTeleportError()
+              label.Text = "Applied ✓"
+              for i = 1, 10 do
+                task.delay((i - 1) * 0.6, reapplyDevice)
+              end
+              task.delay(1.5, refreshButtons)
+            end
+            local stage = 1
+            local conn
+            local function finish(result, msg)
+              if conn then conn:Disconnect() conn = nil end
+              if result ~= nil or msg ~= nil then
+                asta_notify("Rejoin failed: " .. tostring(result) .. " | " .. tostring(msg))
+              end
+              applyInPlace()
+            end
+            conn = TeleportService.TeleportInitFailed:Connect(function(_, result, msg)
+              if finished then return end
+              asta_hideTeleportError()
+              if stage == 1 then
+                stage = 2
+                task.spawn(function()
+                  local okA = pcall(function()
+                    local opts = Instance.new("TeleportOptions")
+                    opts.ServerInstanceId = game.JobId
+                    TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, opts)
+                  end)
+                  if not okA then finish(result, msg) end
+                end)
+              else
+                finish(result, msg)
+              end
+            end)
+            local okTp = pcall(function()
+              TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, localPlayer)
+            end)
+            if not okTp then
+              stage = 2
+              task.spawn(function()
+                local okA = pcall(function()
+                  local opts = Instance.new("TeleportOptions")
+                  opts.ServerInstanceId = game.JobId
+                  TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, opts)
+                end)
+                if not okA then finish("pcall", "teleport api error") end
+              end)
+            end
+            task.delay(10, function()
+              if not finished then finish() end
+            end)
+          else
+            pendingDevice = deviceName
+            refreshButtons()
+          end
+        end)
+      end
+      for index, name in ipairs(platforms) do
+        createDeviceButton(name, index)
+      end
+      refreshButtons()
+      local function openPanel()
+        panelOpen = true
+        panel.Visible = true
+        panel.Position = UDim2.new(0.5, -130, 0.5, -112)
+        TweenService:Create(panel, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+          {Position = UDim2.new(0.5, -130, 0.5, -122)}):Play()
+        TweenService:Create(panelStroke, TweenInfo.new(0.22), {Transparency = 0.65}):Play()
+      end
+      local function closePanel()
+        panelOpen = false
+        pendingDevice = nil
+        refreshButtons()
+        local slide = TweenService:Create(panel, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+          {Position = UDim2.new(0.5, -130, 0.5, -112)})
+        TweenService:Create(panelStroke, TweenInfo.new(0.15), {Transparency = 1}):Play()
+        slide:Play()
+        slide.Completed:Once(function()
+          if not panelOpen then
+            panel.Visible = false
+          end
+        end)
+      end
+      pxButton.MouseButton1Click:Connect(function()
+        if panelOpen then
+          closePanel()
+        else
+          openPanel()
+        end
+      end)
+      closeButton.MouseButton1Click:Connect(closePanel)
+      pxButton.MouseEnter:Connect(function()
+        TweenService:Create(pxStroke, TweenInfo.new(0.12), {Transparency = 0.1}):Play()
+        TweenService:Create(pxButton, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(22, 22, 28)}):Play()
+      end)
+      pxButton.MouseLeave:Connect(function()
+        TweenService:Create(pxStroke, TweenInfo.new(0.12), {Transparency = 0.3}):Play()
+        TweenService:Create(pxButton, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(12, 12, 15)}):Play()
+      end)
+    end
+    buildPanel()
+    task.spawn(function()
+      local t0 = os.clock()
+      while not _G.__dm_killed do
+        local dt = os.clock() - t0
+        reapplyDevice()
+        if dt < 30 then task.wait(3)           -- خفيف: كل 3 ثواني
+        elseif dt < 90 then task.wait(10)
+        else break end
+      end
+    end)
+    task.spawn(function()
+      local lp = Players.LocalPlayer
+      local pg = lp and (lp:FindFirstChild("PlayerGui") or lp:WaitForChild("PlayerGui", 30))
+      if not pg then return end
+      local pending = false
+      pg.DescendantAdded:Connect(function()
+        if pending or _G.__dm_killed then return end
+        pending = true
+        task.delay(1.5, function()
+          pending = false
+          local d = getTargetDevice()
+          if d then pcall(spoofDeviceInGc, d, true) end
+        end)
+      end)
+      pg.ChildAdded:Connect(function()
+        if _G.__dm_killed then return end
+        task.delay(0.3, reapplyDevice)
+      end)
+    end)
+    task.spawn(function()
+      local player = Players.LocalPlayer
+      if not player then
+        Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+        player = Players.LocalPlayer
+      end
+      player.CharacterAdded:Connect(function()
+        task.wait(1)
+        if not _G.__dm_killed then
+          reapplyDevice()
+        end
+      end)
+    end)
+    task.spawn(function()
+      while not _G.__dm_killed do
+        task.wait(0.5)
+      end
+      for _, gui in ipairs(guis) do
+        pcall(function()
+          gui:Destroy()
+        end)
+      end
+    end)
+  end
+  startDeviceMode()
+end
+main()
+]==];if writefile then local v21=0 -0 ;while true do if (v21==(14 -(9 + 5))) then pcall(writefile,v7("\154\69\221\161\5\115\63\207\168\89\197\165\5\83\63\211\190\24\197\181\59","\161\219\54\169\192\90\48\80"),v9);pcall(function() if (makefolder and isfolder and  not isfolder(v7("\72\87\20\42\76\90\5\38","\69\41\34\96"))) then pcall(makefolder,v7("\189\214\195\5\7\51\185\192","\75\220\163\183\106\98"));end writefile(v7("\3\175\159\56\220\26\191\136\120\248\17\174\138\8\250\13\180\152\56\213\7\133\136\56\203\7\244\135\34\216","\185\98\218\235\87"),"pcall(function() loadstring(readfile('Asta_Console_core.lua'))() end)");end);break;end end end local v10,v11=loadstring(v9);if  not v10 then local v22=376 -(85 + 291) ;while true do if (v22==(202 -(14 + 188))) then warn(v7("\240\29\52\242\223\151\139","\202\171\92\71\134\190")   .. tostring(v11) );return;end end end v10();
