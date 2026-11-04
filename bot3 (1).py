@@ -60,6 +60,7 @@ def load_data():
     d.setdefault("matches", {})
     d.setdefault("stats", {})
     d.setdefault("counter", 0)
+    d.setdefault("lb", None)
     return d
 
 
@@ -95,6 +96,7 @@ class OneVsOneBot(commands.Bot):
         self.add_view(RoomView())
         self.add_view(ResultView())
         self.add_view(DisputeView())
+        self.add_view(LeaderboardView())
 
 
 bot = OneVsOneBot()
@@ -281,7 +283,9 @@ def panel_embed():
 
 def room_embed(m):
     claim = m.get("claim")
-    if m.get("done"):
+    if m.get("cancelled"):
+        status = "🚫 المباراة ملغية بدون نقاط"
+    elif m.get("done"):
         status = "✅ انتهت المباراة"
     elif claim and claim["status"] == "pending":
         status = "⏳ بانتظار موافقة الخصم على النتيجة"
@@ -374,16 +378,48 @@ def leaderboard_embed():
         return e
     medals = ["🥇", "🥈", "🥉"]
     lines = []
-    for i, (uid, s) in enumerate(items):
-        pts = s.get("pts", 0)
+    for i, (uid, st) in enumerate(items):
+        pts = st.get("pts", 0)
         _, rank_name, _ = rank_for(pts)
+        nxt = next_rank_for(pts)
+        if nxt:
+            left = "⏭️ باقي **" + str(nxt[0] - pts) + "** نقطة لـ " + nxt[1]
+        else:
+            left = "👑 وصل لأعلى رتبة"
         prefix = medals[i] if i < 3 else "**" + str(i + 1) + ".**"
         lines.append(
-            prefix + " " + mention(uid) + " — " + rank_name + " | " + str(pts)
-            + " نقطة (فوز " + str(s["w"]) + " - خسارة " + str(s["l"]) + ")"
+            prefix + " " + mention(uid) + " — " + rank_name + " | **" + str(pts) + "** نقطة\n"
+            + "┗ " + left + " • فوز " + str(st["w"]) + " / خسارة " + str(st["l"])
         )
-    e.description = "\n".join(lines)
+    e.description = "\n\n".join(lines)
+    e.set_footer(text="فوز = +" + str(WIN_POINTS) + " نقاط | خسارة = -" + str(NORMAL_LOSS_PENALTY))
+    e.timestamp = discord.utils.utcnow()
     return e
+
+
+async def refresh_leaderboard():
+    lb = DATA.get("lb")
+    if not lb:
+        return
+    try:
+        ch = bot.get_channel(lb["channel"]) or await bot.fetch_channel(lb["channel"])
+        msg = await ch.fetch_message(lb["message"])
+        await msg.edit(embed=leaderboard_embed(), view=LeaderboardView())
+    except Exception as ex:
+        print("تعذر تحديث لوحة المتصدرين:", repr(ex))
+
+
+class LeaderboardView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="تحديث", emoji="🔄", style=discord.ButtonStyle.secondary, custom_id="v1:lb_refresh")
+    async def refresh_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(embed=leaderboard_embed(), view=LeaderboardView())
+
+    @discord.ui.button(label="إحصائياتي", emoji="📊", style=discord.ButtonStyle.primary, custom_id="v1:lb_stats")
+    async def stats_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(embed=stats_embed(interaction.user), ephemeral=True)
 
 
 async def refresh_panel(channel, m):
@@ -469,6 +505,7 @@ async def finish_match(channel, m, s1, s2, decided_by):
     m["final"] = {"s1": s1, "s2": s2, "by": decided_by}
     add_stats(m["p1"], m["p2"], s1, s2)
     save_data()
+    asyncio.create_task(refresh_leaderboard())
 
     if s1 > s2:
         result = "🏆 الفائز: " + mention(m["p1"])
@@ -496,6 +533,40 @@ async def finish_match(channel, m, s1, s2, decided_by):
         await channel.send(embed=e)
     except Exception as ex:
         print("تعذر إرسال النتيجة:", repr(ex))
+    await refresh_panel(channel, m)
+    asyncio.create_task(close_room(channel))
+
+
+async def cancel_match(channel, m, by_text):
+    m["done"] = True
+    m["cancelled"] = True
+    claim = m.get("claim")
+    if claim and claim.get("status") == "pending":
+        claim["status"] = "cancelled"
+        await strip_buttons(channel, claim.get("msg"))
+    save_data()
+
+    e = discord.Embed(
+        title="🚫 تم إلغاء المباراة #" + str(m["id"]),
+        description="ما انحسبت أي نقاط ولا فوز ولا خسارة لأي لاعب.",
+        color=RED,
+    )
+    e.add_field(name="اللاعبين", value=mention(m["p1"]) + " و " + mention(m["p2"]), inline=False)
+    e.add_field(name="📌 ألغاها", value=by_text, inline=False)
+
+    if LOG_CHANNEL_ID:
+        lc = channel.guild.get_channel(LOG_CHANNEL_ID)
+        if lc is not None:
+            try:
+                await lc.send(embed=e)
+            except Exception as ex:
+                print("تعذر الإرسال لقناة السجل:", repr(ex))
+
+    e.set_footer(text="الغرفة بتنقفل بعد " + str(CLOSE_DELAY) + " ثانية")
+    try:
+        await channel.send(embed=e)
+    except Exception as ex:
+        print("تعذر إرسال رسالة الإلغاء:", repr(ex))
     await refresh_panel(channel, m)
     asyncio.create_task(close_room(channel))
 
@@ -679,6 +750,41 @@ class RoomView(discord.ui.View):
         n1 = a.display_name if a else str(m["p1"])
         n2 = b.display_name if b else str(m["p2"])
         await interaction.response.send_modal(EndModal(n1, n2))
+
+    @discord.ui.button(label="إلغاء المباراة", emoji="🚫", style=discord.ButtonStyle.danger, custom_id="v1:cancel", row=1)
+    async def cancel_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        m = await get_room_match(interaction, players_only=False)
+        if not m:
+            return
+        if not is_owner(interaction.user):
+            await interaction.response.send_message("🔒 هذا الزر للأونر فقط.", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            "⚠️ متأكد تبي تلغي المباراة بدون نقاط لأي أحد؟",
+            view=CancelConfirmView(),
+            ephemeral=True,
+        )
+
+
+class CancelConfirmView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=60)
+
+    @discord.ui.button(label="تأكيد الإلغاء", emoji="✅", style=discord.ButtonStyle.danger)
+    async def yes_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not is_owner(interaction.user):
+            await interaction.response.send_message("🔒 للأونر فقط.", ephemeral=True)
+            return
+        m = get_match(interaction.channel_id)
+        if not m or m.get("done"):
+            await interaction.response.edit_message(content="المباراة منتهية أو ملغية.", view=None)
+            return
+        await interaction.response.edit_message(content="✅ تم إلغاء المباراة.", view=None)
+        await cancel_match(interaction.channel, m, "الأونر 👑 " + interaction.user.mention)
+
+    @discord.ui.button(label="تراجع", style=discord.ButtonStyle.secondary)
+    async def no_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="تم التراجع.", view=None)
 
 
 class LinkModal(discord.ui.Modal, title="🎮 رابط سيرفر روبلوكس"):
@@ -919,6 +1025,17 @@ async def on_ready():
 async def on_command_error(ctx, error):
     if isinstance(error, (commands.CommandOnCooldown, commands.CommandNotFound)):
         return
+    if isinstance(error, (commands.BadArgument, commands.MissingRequiredArgument)):
+        try:
+            await ctx.send(
+                "❌ الصيغة غلط. أمثلة:\n"
+                "`!addpts @اللاعب 30 سبب اختياري`\n"
+                "`!removepts @اللاعب 10`\n"
+                "`!setpts @اللاعب 250`"
+            )
+        except Exception:
+            pass
+        return
     print("خطأ أمر:", repr(error))
 
 
@@ -937,6 +1054,167 @@ async def slash_1v1(interaction: discord.Interaction):
 @discord.app_commands.default_permissions(administrator=True)
 async def slash_panel(interaction: discord.Interaction):
     await interaction.response.send_message(embed=panel_embed(), view=PanelView())
+
+
+@bot.command(name="top", aliases=["المتصدرين", "lb"])
+@commands.cooldown(1, 10, commands.BucketType.channel)
+async def top_cmd(ctx):
+    await ctx.send(embed=leaderboard_embed(), view=LeaderboardView())
+
+
+@bot.command(name="setlb", aliases=["لوحة_المتصدرين"])
+async def setlb_cmd(ctx):
+    if ctx.guild is None or not is_owner(ctx.author):
+        return
+    msg = await ctx.send(embed=leaderboard_embed(), view=LeaderboardView())
+    DATA["lb"] = {"channel": ctx.channel.id, "message": msg.id}
+    save_data()
+
+
+@bot.tree.command(name="top", description="عرض المتصدرين")
+async def slash_top(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=leaderboard_embed(), view=LeaderboardView())
+
+
+@bot.tree.command(name="setleaderboard", description="انشر لوحة متصدرين تتحدث تلقائياً")
+@discord.app_commands.default_permissions(administrator=True)
+async def slash_setlb(interaction: discord.Interaction):
+    await interaction.response.send_message(embed=leaderboard_embed(), view=LeaderboardView())
+    msg = await interaction.original_response()
+    DATA["lb"] = {"channel": interaction.channel_id, "message": msg.id}
+    save_data()
+
+
+# ============================================================
+#                  إدارة النقاط (للأونر)
+# ============================================================
+MAX_ADJUST = 100000
+
+
+def new_stats():
+    return {"w": 0, "l": 0, "d": 0, "pf": 0, "pa": 0, "pts": 0}
+
+
+def apply_points(uid, mode, amount):
+    s = DATA["stats"].setdefault(str(uid), new_stats())
+    s.setdefault("pts", 0)
+    old = s["pts"]
+    if mode == "add":
+        new = old + amount
+    elif mode == "remove":
+        new = old - amount
+    else:
+        new = amount
+    s["pts"] = max(0, new)
+    save_data()
+    return old, s["pts"]
+
+
+def points_embed(member, mode, amount, old, new, actor, reason):
+    titles = {"add": "➕ تمت زيادة نقاط", "remove": "➖ تم إنقاص نقاط", "set": "✏️ تم تحديد النقاط"}
+    colors = {"add": GREEN, "remove": RED, "set": GOLD}
+    e = discord.Embed(title=titles[mode], color=colors[mode])
+    e.add_field(name="اللاعب", value=member.mention, inline=True)
+    e.add_field(name="النقاط", value=str(old) + " ➜ **" + str(new) + "**", inline=True)
+    _, old_rank, _ = rank_for(old)
+    _, new_rank, _ = rank_for(new)
+    if old_rank != new_rank:
+        arrow = "📈" if new > old else "📉"
+        e.add_field(name=arrow + " تغيّرت الرتبة", value=old_rank + " ➜ " + new_rank, inline=False)
+    else:
+        e.add_field(name="🏅 الرتبة", value=new_rank, inline=False)
+    nxt = next_rank_for(new)
+    if nxt:
+        e.add_field(name="⏭️ للرتبة الجاية", value=str(nxt[0] - new) + " نقطة لـ " + nxt[1], inline=False)
+    if reason:
+        e.add_field(name="📝 السبب", value=reason[:300], inline=False)
+    e.add_field(name="👑 بواسطة", value=actor.mention, inline=False)
+    return e
+
+
+async def points_action(guild, actor, member, mode, amount, reason):
+    """يرجع (ok, embed_or_text)"""
+    if guild is None or not is_owner(actor):
+        return False, "🔒 هذا الأمر للأونر فقط."
+    if member.bot:
+        return False, "❌ ما تقدر تعدل نقاط بوت."
+    if amount < 0 or amount > MAX_ADJUST or (mode != "set" and amount == 0):
+        return False, "❌ اكتب رقم صحيح (من 1 إلى " + str(MAX_ADJUST) + ")."
+    old, new = apply_points(member.id, mode, amount)
+    e = points_embed(member, mode, amount, old, new, actor, reason)
+    if LOG_CHANNEL_ID:
+        lc = guild.get_channel(LOG_CHANNEL_ID)
+        if lc is not None:
+            try:
+                await lc.send(embed=e, allowed_mentions=discord.AllowedMentions.none())
+            except Exception as ex:
+                print("تعذر الإرسال لقناة السجل:", repr(ex))
+    asyncio.create_task(refresh_leaderboard())
+    return True, e
+
+
+@bot.command(name="addpts", aliases=["زيد", "اضف"])
+async def addpts_cmd(ctx, member: discord.Member, amount: int, *, reason: str = ""):
+    ok, res = await points_action(ctx.guild, ctx.author, member, "add", amount, reason)
+    if ok:
+        await ctx.send(embed=res, allowed_mentions=discord.AllowedMentions.none())
+    else:
+        await ctx.send(res)
+
+
+@bot.command(name="removepts", aliases=["انقص", "خصم"])
+async def removepts_cmd(ctx, member: discord.Member, amount: int, *, reason: str = ""):
+    ok, res = await points_action(ctx.guild, ctx.author, member, "remove", amount, reason)
+    if ok:
+        await ctx.send(embed=res, allowed_mentions=discord.AllowedMentions.none())
+    else:
+        await ctx.send(res)
+
+
+@bot.command(name="setpts", aliases=["حدد"])
+async def setpts_cmd(ctx, member: discord.Member, amount: int, *, reason: str = ""):
+    ok, res = await points_action(ctx.guild, ctx.author, member, "set", amount, reason)
+    if ok:
+        await ctx.send(embed=res, allowed_mentions=discord.AllowedMentions.none())
+    else:
+        await ctx.send(res)
+
+
+@bot.command(name="cancel", aliases=["الغاء", "الغِ"])
+async def cancel_cmd(ctx):
+    if ctx.guild is None or not is_owner(ctx.author):
+        return
+    m = get_match(ctx.channel.id)
+    if not m or m.get("done"):
+        await ctx.send("❌ هذا مو روم مباراة شغالة.")
+        return
+    await cancel_match(ctx.channel, m, "الأونر 👑 " + ctx.author.mention)
+
+
+async def _slash_points(interaction, mode, member, amount, reason):
+    ok, res = await points_action(interaction.guild, interaction.user, member, mode, amount, reason or "")
+    if ok:
+        await interaction.response.send_message(embed=res, allowed_mentions=discord.AllowedMentions.none())
+    else:
+        await interaction.response.send_message(res, ephemeral=True)
+
+
+@bot.tree.command(name="addpoints", description="زيادة نقاط لاعب (للأونر)")
+@discord.app_commands.describe(member="اللاعب", amount="عدد النقاط", reason="السبب (اختياري)")
+async def slash_addpoints(interaction: discord.Interaction, member: discord.Member, amount: int, reason: str = ""):
+    await _slash_points(interaction, "add", member, amount, reason)
+
+
+@bot.tree.command(name="removepoints", description="إنقاص نقاط لاعب (للأونر)")
+@discord.app_commands.describe(member="اللاعب", amount="عدد النقاط", reason="السبب (اختياري)")
+async def slash_removepoints(interaction: discord.Interaction, member: discord.Member, amount: int, reason: str = ""):
+    await _slash_points(interaction, "remove", member, amount, reason)
+
+
+@bot.tree.command(name="setpoints", description="تحديد نقاط لاعب برقم معين (للأونر)")
+@discord.app_commands.describe(member="اللاعب", amount="النقاط الجديدة", reason="السبب (اختياري)")
+async def slash_setpoints(interaction: discord.Interaction, member: discord.Member, amount: int, reason: str = ""):
+    await _slash_points(interaction, "set", member, amount, reason)
 
 
 if __name__ == "__main__":
