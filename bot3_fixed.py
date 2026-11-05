@@ -34,7 +34,8 @@ TOKEN = os.environ["DISCORD_TOKEN"]  # حطه في Render > Environment، مش �
 
 WIN_SCORE = 10            # أول من يوصل هذا الرقم يفوز
 OWNER_ROLE_ID = 0         # ايدي رتبة الأونر (اتركه 0 وبيدور على رتبة اسمها Owner / اونر)
-OWNER_ROLE_NAMES = {"owner", "اونر", "أونر", "الاونر", "الأونر"}
+OWNER_USER_IDS = set()   # حط ايديك هنا مثل: {123456789012345678}
+OWNER_ROLE_NAMES = {"owner", "onwer", "اونر", "أونر", "الاونر", "الأونر"}
 ROOM_CATEGORY_ID = 0      # ايدي كاتيجوري الغرف (0 = نفس كاتيجوري قناة اللوحة)
 LOG_CHANNEL_ID = 0        # ايدي قناة سجل النتائج (0 = يدور عليها بالاسم)
 LOG_CHANNEL_NAMES = {"match", "ماتش", "win", "الفائز", "النتائج"}  # أسماء روم النتائج
@@ -183,12 +184,14 @@ def owner_roles(guild):
             roles.append(r)
     else:
         for r in guild.roles:
-            if r.name.strip().lower() in OWNER_ROLE_NAMES:
+            if any(k in r.name.strip().lower() for k in OWNER_ROLE_NAMES):
                 roles.append(r)
     return roles
 
 
 def is_owner(member):
+    if member.id in OWNER_USER_IDS:
+        return True
     if member.guild_permissions.administrator or member.id == member.guild.owner_id:
         return True
     mine = set(r.id for r in member.roles)
@@ -684,6 +687,11 @@ async def handle_join(interaction):
             while q:
                 uid, _ = q.pop(0)
                 member = guild.get_member(uid)
+                if member is None:
+                    try:
+                        member = await guild.fetch_member(uid)
+                    except Exception:
+                        member = None
                 if member is not None and not find_active_match(guild, uid):
                     opponent = member
                     break
@@ -1298,6 +1306,58 @@ async def slash_removepoints(interaction: discord.Interaction, member: discord.M
 @discord.app_commands.describe(member="اللاعب", amount="النقاط الجديدة", reason="السبب (اختياري)")
 async def slash_setpoints(interaction: discord.Interaction, member: discord.Member, amount: int, reason: str = ""):
     await _slash_points(interaction, "set", member, amount, reason)
+
+
+# ============================================================
+#              حذف كل رسائل لاعب (للأونر)
+# ============================================================
+async def purge_user_messages(guild, channel, user_id, all_channels):
+    channels = guild.text_channels if all_channels else [channel]
+    total = 0
+    for ch in channels:
+        perms = ch.permissions_for(guild.me)
+        if not (perms.manage_messages and perms.read_message_history):
+            continue
+        try:
+            deleted = await ch.purge(limit=None, check=lambda msg: msg.author.id == user_id)
+            total += len(deleted)
+        except Exception as ex:
+            print("تعذر الحذف في", ch.name, repr(ex))
+    return total
+
+
+@bot.tree.command(name="purge", description="حذف كل رسائل لاعب (للأونر)")
+@discord.app_commands.describe(member="اختر اللاعب", scope="وين تحذف؟")
+@discord.app_commands.choices(scope=[
+    discord.app_commands.Choice(name="هذا الروم فقط", value="here"),
+    discord.app_commands.Choice(name="كل الرومات", value="all"),
+])
+async def slash_purge(interaction: discord.Interaction, member: discord.User,
+                      scope: discord.app_commands.Choice[str] = None):
+    if interaction.guild is None or not is_owner(interaction.user):
+        await interaction.response.send_message("🔒 هذا الأمر للأونر فقط.", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    all_ch = scope is not None and scope.value == "all"
+    n = await purge_user_messages(interaction.guild, interaction.channel, member.id, all_ch)
+    await interaction.followup.send(
+        "🗑️ تم حذف **" + str(n) + "** رسالة للاعب " + member.mention
+        + (" من كل الرومات." if all_ch else " من هذا الروم."),
+        ephemeral=True,
+    )
+
+
+@bot.command(name="purge", aliases=["مسح", "حذف"])
+async def purge_cmd(ctx, member: discord.User, scope: str = "here"):
+    if ctx.guild is None or not is_owner(ctx.author):
+        return
+    all_ch = scope.lower() in ("all", "الكل")
+    n = await purge_user_messages(ctx.guild, ctx.channel, member.id, all_ch)
+    try:
+        await ctx.send("🗑️ تم حذف **" + str(n) + "** رسالة للاعب " + member.mention,
+                       delete_after=8, allowed_mentions=discord.AllowedMentions.none())
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
