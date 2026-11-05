@@ -7,7 +7,7 @@ from threading import Thread
 import discord
 from discord import app_commands
 from discord.ext import commands
-from flask import Flask
+from flask import Flask, Response, request
 
 # ---- سيرفر ويب صغير عشان Render ما يوقف الخدمة ----
 _web = Flask(__name__)
@@ -18,17 +18,20 @@ def _home():
     return "Key panel bot is running"
 
 
-Thread(target=lambda: _web.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000))), daemon=True).start()
 
 # ============================================================
 #                        الإعدادات
 # ============================================================
 TOKEN = os.environ["DISCORD_TOKEN"]
 OWNER_IDS = {int(x) for x in os.environ.get("OWNER_IDS", "").replace(" ", "").split(",") if x.isdigit()}
+# سيرفرات مسموحة فقط (ايدي السيرفر). لو فاضي ما فيه تقييد
+ALLOWED_GUILDS = {int(x) for x in os.environ.get("GUILD_IDS", "").replace(" ", "").split(",") if x.isdigit()}
 BUYER_ROLE_ID = int(os.environ.get("BUYER_ROLE_ID", "0"))   # رتبة المشترين (0 = بدون)
 PROJECT_NAME = os.environ.get("PROJECT_NAME", "My Project")  # اسم مشروعك في اللوحة
 # النص اللي يستلمه المشتري عند الضغط على Get Script (رابط التحميل أو اللودر حقك)
 SCRIPT_TEXT = os.environ.get("SCRIPT_TEXT", "ضع هنا رابط أو لودر المشروع (متغير SCRIPT_TEXT).")
+PUBLIC_URL = os.environ.get("PUBLIC_URL", "").rstrip("/")   # رابط خدمة Render مثل https://xxx.onrender.com
+SCRIPT_FILE = os.environ.get("SCRIPT_FILE", "protected_script.lua")  # ملف السكربت الحقيقي (يبقى على السيرفر فقط)
 RESET_COOLDOWN = 24 * 3600  # كل كم ثانية يقدر المشتري يعمل Reset
 
 DATA_FILE = "keys_data.json"
@@ -90,6 +93,59 @@ async def give_role(member):
 
 
 # ============================================================
+#     التحقق من الجهاز وتسليم السكربت (يشتغل من اللودر)
+# ============================================================
+def script_body():
+    try:
+        with open(SCRIPT_FILE, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return None
+
+
+@_web.route("/script")
+def serve_script():
+    key = (request.args.get("key") or "").strip().upper()
+    hwid = (request.args.get("hwid") or "").strip()
+    if len(hwid) < 8 or len(hwid) > 128 or not hwid.replace("-", "").isalnum():
+        return Response('warn("[license] invalid device id")', 400, mimetype="text/plain")
+    info = DATA["keys"].get(key)
+    if not info or not info.get("used_by"):
+        return Response('warn("[license] invalid key")', 403, mimetype="text/plain")
+    u = DATA["users"].get(str(info["used_by"]))
+    if not u or u.get("key") != key:
+        return Response('warn("[license] invalid key")', 403, mimetype="text/plain")
+    if u["expires"] and u["expires"] < time.time():
+        return Response('warn("[license] key expired")', 403, mimetype="text/plain")
+    bound = u.get("hwid")
+    if not bound:
+        u["hwid"] = hwid       # أول جهاز يستخدمه يتسجّل
+        save()
+    elif bound != hwid:
+        return Response('warn("[license] this key is locked to another device")', 403, mimetype="text/plain")
+    body = script_body()
+    if body is None:
+        return Response('warn("[license] script not available yet")', 503, mimetype="text/plain")
+    return Response(body, mimetype="text/plain")
+
+
+def loader_line(key):
+    return (
+        'loadstring(game:HttpGet("' + (PUBLIC_URL or "https://YOUR-SERVICE.onrender.com") + '/script?key=' + key
+        + '&hwid=" .. game:GetService("RbxAnalyticsService"):GetClientId()))()'
+    )
+
+
+async def notify_owners(text):
+    for oid in OWNER_IDS:
+        try:
+            user = await bot.fetch_user(oid)
+            await user.send(text)
+        except Exception as e:
+            print("تعذر إرسال إشعار للأونر:", repr(e))
+
+
+# ============================================================
 #                        الواجهة
 # ============================================================
 class RedeemModal(discord.ui.Modal, title="تفعيل المفتاح"):
@@ -138,7 +194,12 @@ class PanelView(discord.ui.View):
         if not active_license(interaction.user.id):
             await interaction.response.send_message("🔒 ما عندك ترخيص فعّال. فعّل مفتاحك أول.", ephemeral=True)
             return
-        await interaction.response.send_message("```\n" + SCRIPT_TEXT + "\n```", ephemeral=True)
+        u = active_license(interaction.user.id)
+        await interaction.response.send_message(
+            "📜 انسخ هذا السطر وشغّله. **مربوط بجهازك الأول**، وإذا أعطيته لشخص ما راح يشتغل عنده:\n```lua\n"
+            + loader_line(u["key"]) + "\n```",
+            ephemeral=True,
+        )
 
     @discord.ui.button(label="Get Role", emoji="👤", style=discord.ButtonStyle.primary, custom_id="kp:role", row=1)
     async def get_role(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -167,7 +228,13 @@ class PanelView(discord.ui.View):
         u["last_reset"] = time.time()
         u["hwid"] = None
         save()
-        await interaction.response.send_message("✅ تم تصفير ربط الجهاز.", ephemeral=True)
+        await interaction.response.send_message(
+            "✅ تم تصفير ربط الجهاز. أول جهاز تشغّل عليه السكربت بعد الآن يتسجّل.", ephemeral=True
+        )
+        await notify_owners(
+            "⚙️ **Reset HWID**\nالمشتري: " + interaction.user.mention + " (`" + str(interaction.user.id) + "`)\n"
+            "عدد المرات الكلي: **" + str(u["resets"]) + "**"
+        )
 
     @discord.ui.button(label="Get Stats", emoji="📊", style=discord.ButtonStyle.secondary, custom_id="kp:stats", row=2)
     async def stats(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -191,7 +258,7 @@ intents = discord.Intents.default()
 
 class KeyBot(commands.Bot):
     def __init__(self):
-        super().__init__(command_prefix="!", intents=intents)
+        super().__init__(command_prefix="!", intents=intents, status=discord.Status.invisible)
 
     async def setup_hook(self):
         self.add_view(PanelView())
@@ -204,6 +271,16 @@ bot = KeyBot()
 @bot.event
 async def on_ready():
     print("✅ شغّال كـ", bot.user)
+    if ALLOWED_GUILDS:
+        for g in bot.guilds:
+            if g.id not in ALLOWED_GUILDS:
+                await g.leave()
+
+
+@bot.event
+async def on_guild_join(guild):
+    if ALLOWED_GUILDS and guild.id not in ALLOWED_GUILDS:
+        await guild.leave()
 
 
 @bot.tree.command(name="panel", description="انشر لوحة التحكم (للأونر)")
@@ -260,4 +337,5 @@ async def revoke(interaction: discord.Interaction, member: discord.Member):
 
 
 if __name__ == "__main__":
+    Thread(target=lambda: _web.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     bot.run(TOKEN)
