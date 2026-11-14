@@ -411,7 +411,26 @@ async def revoke(interaction: discord.Interaction, member: discord.Member):
                 print("تعذر سحب الرتبة:", repr(e))
     await interaction.response.send_message("✅ تم سحب الترخيص من " + member.mention, ephemeral=True)
 
-
+@bot.tree.command(name="resetuser", description="تصفير HWID لمشتري (للأونر بدون cooldown)")
+@app_commands.describe(member="المشتري")
+async def resetuser(interaction: discord.Interaction, member: discord.Member):
+    if not is_owner(interaction.user):
+        await interaction.response.send_message("🔒 للأونر فقط.", ephemeral=True)
+        return
+    u = DATA["users"].get(str(member.id))
+    if not u:
+        await interaction.response.send_message("هذا العضو ما عنده ترخيص.", ephemeral=True)
+        return
+    u["hwid"] = None
+    u["last_reset"] = 0
+    save()
+    await interaction.response.send_message(
+        "✅ تم تصفير HWID لـ " + member.mention + ". يقدر يستخدم Reset الحين.", ephemeral=True
+    )
+    await notify_owners(
+        "🔧 **Owner Reset HWID**\nبواسطة: " + interaction.user.mention +
+        "\nللمشتري: " + member.mention + " (`" + str(member.id) + "`)"
+    )
 if __name__ == "__main__":
     Thread(target=lambda: _web.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000))), daemon=True).start()
     bot.run(TOKEN)
