@@ -1,0 +1,341 @@
+"""
+botur.py — Discord obfuscation bot v3.0 (merged)
+requires: pip install discord.py
+single file — no external dependencies
+"""
+
+import discord
+from discord import app_commands
+import os, re, tempfile, sys, threading, random, struct
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+
+# ══════════════════════════════════════════════════════════════
+#  lua_deobf — فك التشفير
+# ══════════════════════════════════════════════════════════════
+
+def _extract_assembled(varname, text):
+    pat = re.escape(varname) + r'=\(function\(\)local _p=\{(.*?)\}local _o=\{(.*?)\}'
+    m = re.search(pat, text, re.DOTALL)
+    if not m:
+        return None
+    order = [int(x.strip()) for x in m.group(2).split(',')]
+    chunk_strs = re.findall(r'"((?:\\[0-9]+|[^"\\])*)"', m.group(1))
+    def _decode(s):
+        out = []; i = 0
+        while i < len(s):
+            if s[i] == '\\':
+                j = i + 1; num = ''
+                while j < len(s) and s[j].isdigit():
+                    num += s[j]; j += 1
+                out.append(int(num)); i = j
+            else:
+                out.append(ord(s[i])); i += 1
+        return bytes(out)
+    chunks = [_decode(c) for c in chunk_strs]
+    result = [None] * len(order)
+    for idx, pos in enumerate(order):
+        result[pos - 1] = chunks[idx]
+    return b''.join(x for x in result if x is not None)
+
+def _xor8(a, b):
+    r, p = 0, 1
+    for _ in range(8):
+        u, v = a % 2, b % 2
+        if u != v: r += p
+        a = (a - u) // 2; b = (b - v) // 2; p *= 2
+    return r
+
+def _ror8(b, n):
+    n = n % 8
+    if n == 0: return b
+    return ((b >> n) | (b << (8 - n))) & 0xFF
+
+def decrypt_xor_ror_layer(src):
+    if isinstance(src, bytes):
+        src = src.decode('utf-8', 'replace')
+    size_m = re.search(r'local \w+,\w+,\w+=#(_\w+),#(_\w+),#(_\w+)', src)
+    if not size_m:
+        return None
+    k1n, k2n, k3n = size_m.group(1), size_m.group(2), size_m.group(3)
+    all_vars = re.findall(r'local (_\w+)=\(function\(\)local _p=\{', src)
+    key_vars = {k1n, k2n, k3n}
+    payload_var = next((v for v in reversed(all_vars) if v not in key_vars), None)
+    if not payload_var:
+        return None
+    key1    = _extract_assembled(k1n,         src)
+    key2    = _extract_assembled(k2n,         src)
+    key3    = _extract_assembled(k3n,         src)
+    payload = _extract_assembled(payload_var, src)
+    if not all([key1, key2, key3, payload]):
+        return None
+    rot_m = re.search(r'=\{((?:\([^)]+\),?){5,10})\}', src)
+    if not rot_m:
+        return None
+    rotation = [eval(x.strip()) for x in rot_m.group(1).split(',') if x.strip()]
+    L1, L2, L3 = len(key1), len(key2), len(key3)
+    out = bytearray()
+    for i, byte in enumerate(payload):
+        ia  = i % L1; ib  = i % L2
+        mka = key3[ia % L3]; mkb = key3[ib % L3]
+        b   = _xor8(byte, _xor8(key2[ib], mkb))
+        b   = _ror8(b, rotation[i % 7])
+        b   = _xor8(b, _xor8(key1[ia], mka))
+        out.append(b)
+    return bytes(out)
+
+def inline_string_table(src):
+    key_m = re.search(r'_0x041f=\{([^}]+)\}', src)
+    if not key_m:
+        return src
+    key = [int(x.strip()) for x in key_m.group(1).split(',')]
+    t_start = src.find('local _0x945f={"')
+    t_end   = src.find('};local _0x95902=')
+    if t_start < 0 or t_end < 0:
+        return src
+    table_src   = src[t_start + len('local _0x945f={'):t_end]
+    raw_entries = re.findall(r'"((?:\\[0-9]+|[^"\\])*)"', table_src)
+    def _decode_entry(s):
+        raw = []; i = 0
+        while i < len(s):
+            if s[i] == '\\':
+                j = i + 1; num = ''
+                while j < len(s) and s[j].isdigit():
+                    num += s[j]; j += 1
+                raw.append(int(num)); i = j
+            else:
+                raw.append(ord(s[i])); i += 1
+        kl = len(key)
+        db = bytes((b - key[idx % kl] + 256) % 256 for idx, b in enumerate(raw))
+        dec = db.decode('utf-8', 'replace')
+        prefix = dec[0] if dec else ''
+        value  = dec[1:] if dec else ''
+        if prefix == 'N':
+            return repr(float(value) if '.' in value else int(value))
+        return repr(value)
+    table = [_decode_entry(e) for e in raw_entries]
+    code_part = src[t_end + len('};'):]
+    def repl(m):
+        idx = int(m.group(1))
+        return table[idx - 1] if 1 <= idx <= len(table) else m.group(0)
+    return re.sub(r'_0xd215db\((\d+)\)', repl, code_part)
+
+
+# ══════════════════════════════════════════════════════════════
+#  luraph_style_mobile — التشفير
+# ══════════════════════════════════════════════════════════════
+
+ROTATION_TABLE = (3, 1, 5, 2, 6, 4, 7)
+
+def _xor8_obf(a, b): return a ^ b
+def _ror8_obf(b, n):
+    n &= 7
+    if n == 0: return b
+    return ((b >> n) | (b << (8 - n))) & 0xFF
+def _rol8_obf(b, n): return _ror8_obf(b, 8 - (n & 7))
+
+def _encode_bytes_lua(data):
+    return '"' + ''.join(f'\\{b}' for b in data) + '"'
+
+def _build_assembled_var(varname, data, rng):
+    n = max(2, min(8, len(data) // 64 + 2))
+    chunk_size = max(1, len(data) // n)
+    chunks = []
+    i = 0
+    while i < len(data):
+        end = i + chunk_size if len(chunks) < n - 1 else len(data)
+        chunks.append(data[i:end]); i = end
+    order = list(range(len(chunks)))
+    rng.shuffle(order)
+    perm_chunks = [None] * len(chunks)
+    inv_order   = [0] * len(chunks)
+    for shuffled_idx, orig_idx in enumerate(order):
+        perm_chunks[shuffled_idx] = chunks[orig_idx]
+        inv_order[orig_idx] = shuffled_idx + 1
+    p_entries = ','.join(_encode_bytes_lua(c) for c in perm_chunks)
+    o_entries = ','.join(str(x) for x in inv_order)
+    return (
+        f'local {varname}=(function()'
+        f'local _p={{{p_entries}}}'
+        f'local _o={{{o_entries}}}'
+        f'local _r={{}}for _i=1,#{{{o_entries}}} do _r[_o[_i]]=_p[_i] end '
+        f'local _s=""for _=1,#_r do _s=_s.._r[_] end return _s end)()'
+    )
+
+class LuraphStyleObf:
+    def __init__(self, seed=None):
+        self.seed = seed if seed is not None else random.getrandbits(64)
+        self._rng = random.Random(self.seed)
+    def _make_varname(self):
+        return '_' + ''.join(self._rng.choice('IlO0ij1oL') for _ in range(self._rng.randint(6, 10)))
+    def obfuscate(self, src):
+        return self._encrypt_layer(src.encode('utf-8'))
+    def _encrypt_layer(self, payload):
+        rng = self._rng
+        key1 = bytes(rng.randint(0,255) for _ in range(rng.randint(32,64)))
+        key2 = bytes(rng.randint(0,255) for _ in range(rng.randint(32,64)))
+        key3 = bytes(rng.randint(0,255) for _ in range(rng.randint(16,32)))
+        rotation = list(ROTATION_TABLE)
+        L1, L2, L3 = len(key1), len(key2), len(key3)
+        enc = bytearray()
+        for i, b in enumerate(payload):
+            ia = i % L1; ib = i % L2
+            mka = key3[ia % L3]; mkb = key3[ib % L3]
+            b = _xor8_obf(b, _xor8_obf(key1[ia], mka))
+            b = _rol8_obf(b, rotation[i % 7])
+            b = _xor8_obf(b, _xor8_obf(key2[ib], mkb))
+            enc.append(b)
+        k1n=self._make_varname(); k2n=self._make_varname()
+        k3n=self._make_varname(); pn=self._make_varname()
+        vn=self._make_varname();  an=self._make_varname()
+        bn=self._make_varname();  cn=self._make_varname()
+        rot_str = ','.join(f'({r})' for r in rotation)
+        lines = [
+            _build_assembled_var(k1n, key1, rng),
+            _build_assembled_var(k2n, key2, rng),
+            _build_assembled_var(k3n, key3, rng),
+            _build_assembled_var(pn, bytes(enc), rng),
+            f'local {an},{bn},{cn}=#{k1n},#{k2n},#{k3n}',
+            f'local _rot={{{rot_str}}}',
+            (f'local _out={{}} '
+             f'for _i=1,#{pn} do '
+             f'local _b=string.byte({pn},_i) '
+             f'local _ia=((_i-1)%{an})+1 '
+             f'local _ib=((_i-1)%{bn})+1 '
+             f'local _mka=string.byte({k3n},((_ia-1)%{cn})+1) '
+             f'local _mkb=string.byte({k3n},((_ib-1)%{cn})+1) '
+             f'local _r=_rot[((_i-1)%7)+1] '
+             f'_b=(_b~(string.byte({k2n},_ib)~_mkb)) '
+             f'_b=((_b>>_r)|(_b<<(8-_r)))&0xFF '
+             f'_b=(_b~(string.byte({k1n},_ia)~_mka)) '
+             f'_out[_i]=string.char(_b) '
+             f'end '
+             f'local {vn}=table.concat(_out) '
+             f'load({vn})()')
+        ]
+        return '\n'.join(lines)
+
+
+# ══════════════════════════════════════════════════════════════
+#  bot
+# ══════════════════════════════════════════════════════════════
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
+    def log_message(self, *args): pass
+
+def run_health_server():
+    port = int(os.getenv("PORT", 10000))
+    HTTPServer(("0.0.0.0", port), HealthHandler).serve_forever()
+
+def detect_obfuscation(src):
+    results = []
+    if re.search(r'local\s+\w+\s*=\s*\(getfenv', src): results.append("🔴 Luraph (getfenv pattern)")
+    if re.search(r'string\.byte.*string\.char.*%\s*256', src): results.append("🔴 Luraph-style XOR decrypt")
+    if re.search(r'IronBrew', src, re.IGNORECASE): results.append("🟠 IronBrew")
+    if re.search(r'local\s+\w+\s*=\s*\{[01,\s]{20,}\}', src): results.append("🟠 IronBrew2 (VM bytecode array)")
+    if re.search(r'\\x[0-9a-fA-F]{2}', src) and src.count('\\x') > 20: results.append("🟡 Hex-encoded strings")
+    if re.search(r'Prometheus', src, re.IGNORECASE): results.append("🟡 Prometheus")
+    if re.search(r'bxor|bit\.bxor|~\s*\d', src): results.append("⚪ Generic XOR / bit ops")
+    if re.search(r'local\s+\w+\s*=\s*\{[^}]{500,}\}', src) and src.count('function') > 10: results.append("🟣 Custom VM")
+    if not results:
+        if len(re.findall(r'\b[IlO0ij1oL]{8,}\b', src)) > 10: results.append("✅ luraph_style (هذا البوت)")
+        else: results.append("✅ Plain Lua — مفيش تشفير")
+    return "\n".join(results)
+
+class MyClient(discord.Client):
+    def __init__(self):
+        super().__init__(intents=discord.Intents.default() | discord.Intents(message_content=True))
+        self.tree = app_commands.CommandTree(self)
+    async def setup_hook(self):
+        await self.tree.sync()
+
+client = MyClient()
+
+@client.tree.command(name="get", description="تشفير ملف Lua")
+async def cmd_get(interaction: discord.Interaction, file: discord.Attachment):
+    if not file.filename.endswith(".lua"):
+        await interaction.response.send_message("⚠️ الملف مش `.lua`", ephemeral=True); return
+    await interaction.response.defer()
+    data = await file.read()
+    try: src = data.decode("utf-8")
+    except UnicodeDecodeError:
+        await interaction.followup.send("❌ مش قادر يقرأ الملف"); return
+    try:
+        obf = LuraphStyleObf(); obf_src = obf.obfuscate(src); seed_hex = f"{obf.seed:#018x}"
+    except Exception as e:
+        await interaction.followup.send(f"❌ error: `{e}`"); return
+    out_name = file.filename.rsplit(".", 1)[0] + "_obf.lua"
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.lua', encoding='utf-8', delete=False) as tmp:
+        tmp.write(obf_src); tmp_path = tmp.name
+    try:
+        await interaction.followup.send(
+            f"✅ **{out_name}** جاهز\nseed: `{seed_hex}`\n"
+            f"الحجم: `{len(src):,}` → `{len(obf_src):,}` chars",
+            file=discord.File(tmp_path, filename=out_name))
+    finally: os.unlink(tmp_path)
+
+@client.tree.command(name="deobf", description="فك تشفير ملف Lua (multi-layer)")
+async def cmd_deobf(interaction: discord.Interaction, file: discord.Attachment):
+    if not file.filename.endswith((".lua", ".txt")):
+        await interaction.response.send_message("⚠️ الملف لازم `.lua` أو `.txt`", ephemeral=True); return
+    await interaction.response.defer()
+    data = await file.read()
+    try: layer = data.decode("utf-8", errors="replace")
+    except Exception:
+        await interaction.followup.send("❌ مش قادر يقرأ الملف"); return
+    try:
+        depth = 0
+        while True:
+            result = decrypt_xor_ror_layer(layer)
+            if result is None: break
+            depth += 1; layer = result
+        if isinstance(layer, bytes): layer = layer.decode("utf-8", "replace")
+        cleaned = inline_string_table(layer)
+        if cleaned != layer: layer = cleaned
+    except Exception as e:
+        await interaction.followup.send(f"❌ error: `{e}`"); return
+    if depth == 0 and layer == data.decode("utf-8", "replace"):
+        await interaction.followup.send("⚠️ ما لقيت تشفير XOR+ROR في الملف\nجرّب `/sss` تعرف نوع التشفير أول"); return
+    out_name = file.filename.rsplit(".", 1)[0] + "_decoded.lua"
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.lua', encoding='utf-8', delete=False) as tmp:
+        tmp.write(layer); tmp_path = tmp.name
+    try:
+        await interaction.followup.send(
+            f"🔓 **{file.filename}** — فُكّ تشفيره\n"
+            f"طبقات: `{depth}` | الحجم: `{len(data):,}` → `{len(layer):,}` chars",
+            file=discord.File(tmp_path, filename=out_name))
+    finally: os.unlink(tmp_path)
+
+@client.tree.command(name="sss", description="كشف نوع تشفير ملف Lua")
+async def cmd_sss(interaction: discord.Interaction, file: discord.Attachment):
+    if not file.filename.endswith(".lua"):
+        await interaction.response.send_message("⚠️ الملف مش `.lua`", ephemeral=True); return
+    await interaction.response.defer()
+    data = await file.read()
+    try: src = data.decode("utf-8")
+    except UnicodeDecodeError: src = data.decode("latin-1")
+    detection = detect_obfuscation(src)
+    await interaction.followup.send(
+        f"**📄 {file.filename}**\n"
+        f"الحجم: `{len(data):,} bytes` | الأسطر: `{src.count(chr(10))+1:,}`\n\n"
+        f"**🔍 نوع التشفير:**\n{detection}")
+
+@client.tree.command(name="help", description="قائمة الأوامر")
+async def cmd_help(interaction: discord.Interaction):
+    await interaction.response.send_message(
+        "**الأوامر:**\n"
+        "`/get` — تشفير ملف `.lua`\n"
+        "`/deobf` — فك تشفير ملف `.lua` (multi-layer)\n"
+        "`/sss` — كشف نوع التشفير\n"
+        "`/help` — القائمة دي")
+
+@client.event
+async def on_ready():
+    print(f"[✓] bot online: {client.user}")
+
+threading.Thread(target=run_health_server, daemon=True).start()
+client.run(TOKEN)
