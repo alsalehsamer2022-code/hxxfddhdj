@@ -116,7 +116,11 @@ def save():
                 json.dump(DATA, f, ensure_ascii=False)
             os.replace(tmp, DATA_FILE)
 
-
+try:
+    DATA = load()
+except Exception as e:
+    print("load failed:", repr(e))
+    DATA = {"keys": {}, "users": {}}
 def is_owner(user):
     return user.id in OWNER_IDS
 
