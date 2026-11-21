@@ -13,7 +13,7 @@ except ImportError:
     _HAS_NUMPY = False
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-MAX_FILE_MB = 5  # الحد الأقصى للملف بالميغابايت
+MAX_FILE_MB = 20  # الحد الأقصى للملف بالميغابايت
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
